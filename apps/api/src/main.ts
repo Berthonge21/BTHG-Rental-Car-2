@@ -4,24 +4,23 @@ import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { setupSwagger } from './config/swagger.config';
-import type { AppConfig } from './config/configuration';
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
-  const configService = app.get(ConfigService<AppConfig>);
+  const configService = app.get(ConfigService);
   const port = configService.get<number>('port') || 4000;
   const apiPrefix = configService.get<string>('apiPrefix') || 'api/v1';
-  const corsOrigins = configService.get<string[]>('cors.origins') || ['http://localhost:3000'];
-  const swaggerEnabled = configService.get<boolean>('swagger.enabled') ?? true;
+  const corsConfig = configService.get<{ origins: string[] }>('cors') || { origins: ['http://localhost:3000'] };
+  const swaggerConfig = configService.get<{ enabled: boolean }>('swagger') || { enabled: true };
 
   // Set global prefix
   app.setGlobalPrefix(apiPrefix);
 
   // Configure CORS
   app.enableCors({
-    origin: corsOrigins,
+    origin: corsConfig.origins,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   });
@@ -42,7 +41,7 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // Setup Swagger documentation
-  if (swaggerEnabled) {
+  if (swaggerConfig.enabled) {
     setupSwagger(app);
     logger.log(`Swagger documentation available at http://localhost:${port}/api/docs`);
   }
