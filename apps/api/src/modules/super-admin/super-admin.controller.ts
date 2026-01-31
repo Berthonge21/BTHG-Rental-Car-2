@@ -67,10 +67,13 @@ export class SuperAdminController {
   })
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Requires super-admin role' })
   async getAgencies(
-    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.superAdminService.getAllAgencies(page, limit);
+    return this.superAdminService.getAllAgencies(
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+    );
   }
 
   @Get('rentals')
@@ -101,10 +104,13 @@ export class SuperAdminController {
   })
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Requires super-admin role' })
   async getAdminUsers(
-    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.superAdminService.getAdminUsers(page, limit);
+    return this.superAdminService.getAdminUsers(
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+    );
   }
 
   @Post('users')

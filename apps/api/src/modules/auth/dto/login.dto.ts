@@ -36,3 +36,12 @@ export class AdminLoginDto {
   @MinLength(6)
   password: string;
 }
+
+export class RefreshTokenDto {
+  @ApiProperty({
+    description: 'JWT refresh token',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  @IsString()
+  refreshToken: string;
+}

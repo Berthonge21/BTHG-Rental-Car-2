@@ -44,10 +44,13 @@ export class AgenciesController {
     type: [AgencyResponseDto],
   })
   async findAll(
-    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.agenciesService.findAll(page, limit);
+    return this.agenciesService.findAll(
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+    );
   }
 
   @Get(':id')
@@ -138,10 +141,14 @@ export class AgenciesController {
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Agency not found' })
   async getCars(
     @Param('id', ParseIntPipe) id: number,
-    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
-    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.agenciesService.getCars(id, page, limit);
+    return this.agenciesService.getCars(
+      id,
+      page ? parseInt(page, 10) : undefined,
+      limit ? parseInt(limit, 10) : undefined,
+    );
   }
 
   @Get(':id/stats')

@@ -134,6 +134,10 @@ export class RentalsService {
       throw new ConflictException('Car is not available for the selected dates');
     }
 
+    // Calculate total if not provided (price per day * number of days)
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const total = dto.total ?? car.price * days;
+
     return this.prisma.rental.create({
       data: {
         clientId: userId,
@@ -142,7 +146,7 @@ export class RentalsService {
         endDate,
         startTime: new Date(dto.startTime),
         endTime: new Date(dto.endTime),
-        total: dto.total,
+        total,
         status: 'reserved',
       },
       include: {

@@ -34,14 +34,6 @@ export class AuthResponseDto {
   user: UserResponseDto;
 }
 
-export class RefreshTokenDto {
-  @ApiProperty({
-    description: 'Refresh token',
-    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-  })
-  refreshToken: string;
-}
-
 export class MessageResponseDto {
   @ApiProperty({ example: 'Operation successful' })
   message: string;
