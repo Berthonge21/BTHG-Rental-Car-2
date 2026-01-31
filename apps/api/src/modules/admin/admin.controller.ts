@@ -1,0 +1,103 @@
+import {
+  Controller,
+  Get,
+  Patch,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  ParseIntPipe,
+  HttpStatus,
+  ForbiddenException,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+} from '@nestjs/swagger';
+import { AdminService } from './admin.service';
+import { DashboardStatsDto, UpdateRentalStatusDto } from './dto';
+import { RentalQueryDto, RentalResponseDto } from '../rentals/dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles, CurrentUser } from '../../common/decorators';
+
+@ApiTags('admin')
+@Controller('admin')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('admin', 'superAdmin')
+@ApiBearerAuth('JWT-auth')
+export class AdminController {
+  constructor(private readonly adminService: AdminService) {}
+
+  @Get('dashboard')
+  @ApiOperation({
+    summary: 'Get agency dashboard',
+    description: 'Get dashboard statistics for the admin\'s agency',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Dashboard statistics',
+    type: DashboardStatsDto,
+  })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Not an agency admin' })
+  async getDashboard(
+    @CurrentUser() user: { agencyId?: number; role: string },
+  ) {
+    if (!user.agencyId && user.role !== 'superAdmin') {
+      throw new ForbiddenException('You are not assigned to an agency');
+    }
+
+    return this.adminService.getDashboard(user.agencyId!);
+  }
+
+  @Get('rentals')
+  @ApiOperation({
+    summary: 'Get agency rentals',
+    description: 'Get all rentals for the admin\'s agency with pagination and filters',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'List of agency rentals',
+    type: [RentalResponseDto],
+  })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Not an agency admin' })
+  async getRentals(
+    @CurrentUser() user: { agencyId?: number; role: string },
+    @Query() query: RentalQueryDto,
+  ) {
+    if (!user.agencyId && user.role !== 'superAdmin') {
+      throw new ForbiddenException('You are not assigned to an agency');
+    }
+
+    return this.adminService.getRentals(user.agencyId!, query);
+  }
+
+  @Patch('rentals/:id')
+  @ApiOperation({
+    summary: 'Update rental status',
+    description: 'Approve, reject, or update the status of a rental (agency admin only)',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'Rental ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Rental status updated',
+    type: RentalResponseDto,
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Rental not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Not authorized for this rental' })
+  async updateRentalStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateRentalStatusDto,
+    @CurrentUser() user: { agencyId?: number; role: string },
+  ) {
+    if (!user.agencyId && user.role !== 'superAdmin') {
+      throw new ForbiddenException('You are not assigned to an agency');
+    }
+
+    const agencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
+    return this.adminService.updateRentalStatus(id, dto.status, agencyId!);
+  }
+}

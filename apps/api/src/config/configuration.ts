@@ -32,6 +32,6 @@ export default (): AppConfig => ({
     origins: (process.env.CORS_ORIGINS || 'http://localhost:3000').split(','),
   },
   swagger: {
-    enabled: process.env.SWAGGER_ENABLED === 'true',
+    enabled: process.env.SWAGGER_ENABLED !== 'false',
   },
 });
