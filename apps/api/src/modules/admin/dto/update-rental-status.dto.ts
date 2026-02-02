@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum } from 'class-validator';
-import { RentalStatus } from '@automobelite/database';
+import { RentalStatus } from '@rentalcar/database';
 
 export class UpdateRentalStatusDto {
   @ApiProperty({

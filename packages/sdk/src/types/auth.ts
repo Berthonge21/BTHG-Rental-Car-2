@@ -41,6 +41,11 @@ export interface AuthResponse {
   user: UserResponse;
 }
 
+export interface CurrentUserAgency {
+  id: number;
+  name: string;
+}
+
 export interface CurrentUser {
   id: number;
   email: string;
@@ -51,5 +56,6 @@ export interface CurrentUser {
   address?: string;
   city?: string;
   image?: string;
-  agencyId?: number;
+  agency?: CurrentUserAgency | null;
+  createdAt?: string;
 }

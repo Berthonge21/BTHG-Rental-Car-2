@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, MaxLength, IsOptional, IsInt } from 'class-validator';
+import { IsString, IsEmail, MaxLength, IsOptional, IsInt, IsEnum } from 'class-validator';
+import { Status } from '@rentalcar/database';
 
 export class CreateAgencyDto {
   @ApiProperty({
@@ -50,4 +51,13 @@ export class CreateAgencyDto {
   @IsOptional()
   @IsString()
   image?: string;
+
+  @ApiPropertyOptional({
+    description: 'Agency status',
+    enum: Status,
+    default: 'activate',
+  })
+  @IsOptional()
+  @IsEnum(Status)
+  status?: Status;
 }

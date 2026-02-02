@@ -138,7 +138,9 @@ model Availability {
   date      DateTime
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @map("updated_at")
-  car       Car      @relation(fields: [carId], references: [id])
+  car       Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
+
+  @@unique([carId, date], name: "carId_date")
 }
 
 enum UserRole {

@@ -8,6 +8,7 @@ export interface CreateAgencyDto {
   telephone: string;
   responsibleId: number;
   image?: string;
+  status?: Status;
 }
 
 export interface UpdateAgencyDto {

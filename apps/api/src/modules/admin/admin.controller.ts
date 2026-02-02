@@ -75,6 +75,31 @@ export class AdminController {
     return this.adminService.getRentals(user.agencyId!, query);
   }
 
+  @Get('rentals/:id')
+  @ApiOperation({
+    summary: 'Get rental details',
+    description: 'Get detailed information about a specific rental for the admin\'s agency',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'Rental ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Rental details',
+    type: RentalResponseDto,
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Rental not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Not authorized for this rental' })
+  async getRental(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: { agencyId?: number; role: string },
+  ) {
+    if (!user.agencyId && user.role !== 'superAdmin') {
+      throw new ForbiddenException('You are not assigned to an agency');
+    }
+
+    const agencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
+    return this.adminService.getRental(id, agencyId);
+  }
+
   @Patch('rentals/:id')
   @ApiOperation({
     summary: 'Update rental status',

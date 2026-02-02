@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsEnum, IsDateString } from 'class-validator';
-import { RentalStatus } from '@automobelite/database';
+import { RentalStatus } from '@rentalcar/database';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 export class RentalQueryDto extends PaginationQueryDto {

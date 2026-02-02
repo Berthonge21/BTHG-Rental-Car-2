@@ -35,8 +35,8 @@ export class UsersController {
     type: UserProfileResponseDto,
   })
   @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Not authenticated' })
-  async getProfile(@CurrentUser() user: { id: number }) {
-    return this.usersService.getProfile(user.id);
+  async getProfile(@CurrentUser() user: { id: number; type: 'client' | 'agency' }) {
+    return this.usersService.getProfile(user.id, user.type);
   }
 
   @Patch('me')
@@ -52,9 +52,9 @@ export class UsersController {
   @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Not authenticated' })
   @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data' })
   async updateProfile(
-    @CurrentUser() user: { id: number },
+    @CurrentUser() user: { id: number; type: 'client' | 'agency' },
     @Body() dto: UpdateProfileDto,
   ) {
-    return this.usersService.updateProfile(user.id, dto);
+    return this.usersService.updateProfile(user.id, dto, user.type);
   }
 }

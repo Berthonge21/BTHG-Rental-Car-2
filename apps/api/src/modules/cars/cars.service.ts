@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCarDto, UpdateCarDto, CarQueryDto } from './dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
-import { Prisma } from '@automobelite/database';
+import { Prisma } from '@rentalcar/database';
 
 @Injectable()
 export class CarsService {
@@ -139,6 +139,7 @@ export class CarsService {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
+    // Check for conflicting rentals
     const conflictingRental = await this.prisma.rental.findFirst({
       where: {
         carId: id,
@@ -157,11 +158,226 @@ export class CarsService {
       },
     });
 
+    // Check for manually blocked dates
+    const blockedDates = await this.prisma.availability.findMany({
+      where: {
+        carId: id,
+        date: {
+          gte: start,
+          lte: end,
+        },
+      },
+    });
+
     return {
       carId: id,
-      available: !conflictingRental,
+      available: !conflictingRental && blockedDates.length === 0,
       requestedDates: { startDate, endDate },
       ...(conflictingRental && { conflictingRental }),
+      ...(blockedDates.length > 0 && { blockedDates: blockedDates.map((d) => d.date) }),
+    };
+  }
+
+  /**
+   * Get all blocked dates and rental dates for a car within a date range
+   */
+  async getAvailabilityCalendar(id: number, year: number, month?: number) {
+    await this.findOne(id);
+
+    // Determine date range (full year or specific month)
+    const startDate = month
+      ? new Date(year, month - 1, 1)
+      : new Date(year, 0, 1);
+    const endDate = month
+      ? new Date(year, month, 0, 23, 59, 59)
+      : new Date(year, 11, 31, 23, 59, 59);
+
+    // Get manually blocked dates
+    const blockedDates = await this.prisma.availability.findMany({
+      where: {
+        carId: id,
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      orderBy: { date: 'asc' },
+    });
+
+    // Get rental dates (reserved or ongoing)
+    const rentals = await this.prisma.rental.findMany({
+      where: {
+        carId: id,
+        status: { in: ['reserved', 'ongoing'] },
+        OR: [
+          {
+            startDate: { lte: endDate },
+            endDate: { gte: startDate },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        status: true,
+        client: {
+          select: {
+            id: true,
+            firstname: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: { startDate: 'asc' },
+    });
+
+    // Calculate total available days in the period
+    const totalDays = Math.ceil(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
+    ) + 1;
+
+    // Calculate blocked days from rentals
+    let rentalBlockedDays = 0;
+    for (const rental of rentals) {
+      const rentalStart = new Date(
+        Math.max(rental.startDate.getTime(), startDate.getTime()),
+      );
+      const rentalEnd = new Date(
+        Math.min(rental.endDate.getTime(), endDate.getTime()),
+      );
+      rentalBlockedDays +=
+        Math.ceil(
+          (rentalEnd.getTime() - rentalStart.getTime()) / (1000 * 60 * 60 * 24),
+        ) + 1;
+    }
+
+    const manuallyBlockedDays = blockedDates.length;
+    const availableDays = totalDays - rentalBlockedDays - manuallyBlockedDays;
+
+    return {
+      carId: id,
+      period: { year, month, startDate, endDate },
+      stats: {
+        totalDays,
+        availableDays: Math.max(0, availableDays),
+        rentalBlockedDays,
+        manuallyBlockedDays,
+      },
+      blockedDates: blockedDates.map((d) => ({
+        id: d.id,
+        date: d.date,
+        type: 'manual' as const,
+      })),
+      rentals: rentals.map((r) => ({
+        id: r.id,
+        startDate: r.startDate,
+        endDate: r.endDate,
+        status: r.status,
+        client: r.client,
+        type: 'rental' as const,
+      })),
+    };
+  }
+
+  /**
+   * Block specific dates for a car
+   */
+  async blockDates(id: number, dates: string[], userAgencyId?: number) {
+    const car = await this.findOne(id);
+
+    if (userAgencyId && car.agencyId !== userAgencyId) {
+      throw new ForbiddenException('You can only manage availability for your own cars');
+    }
+
+    const dateObjects = dates.map((d) => new Date(d));
+
+    // Check if any dates have active rentals
+    for (const date of dateObjects) {
+      const conflictingRental = await this.prisma.rental.findFirst({
+        where: {
+          carId: id,
+          status: { in: ['reserved', 'ongoing'] },
+          startDate: { lte: date },
+          endDate: { gte: date },
+        },
+      });
+
+      if (conflictingRental) {
+        throw new ForbiddenException(
+          `Cannot block ${date.toISOString().split('T')[0]} - there's an active rental`,
+        );
+      }
+    }
+
+    // Create availability records (blocked dates)
+    const created = await this.prisma.$transaction(
+      dateObjects.map((date) =>
+        this.prisma.availability.upsert({
+          where: {
+            carId_date: { carId: id, date },
+          },
+          create: { carId: id, date },
+          update: {},
+        }),
+      ),
+    );
+
+    return {
+      carId: id,
+      blockedDates: created.map((d) => d.date),
+      count: created.length,
+    };
+  }
+
+  /**
+   * Unblock specific dates for a car
+   */
+  async unblockDates(id: number, dates: string[], userAgencyId?: number) {
+    const car = await this.findOne(id);
+
+    if (userAgencyId && car.agencyId !== userAgencyId) {
+      throw new ForbiddenException('You can only manage availability for your own cars');
+    }
+
+    const dateObjects = dates.map((d) => new Date(d));
+
+    const deleted = await this.prisma.availability.deleteMany({
+      where: {
+        carId: id,
+        date: { in: dateObjects },
+      },
+    });
+
+    return {
+      carId: id,
+      unblockedCount: deleted.count,
+    };
+  }
+
+  /**
+   * Initialize availability for a new car (block no dates by default = all available)
+   * Or block all dates except specified available days
+   */
+  async initializeAvailability(
+    id: number,
+    availableDays: number = 365,
+    userAgencyId?: number,
+  ) {
+    const car = await this.findOne(id);
+
+    if (userAgencyId && car.agencyId !== userAgencyId) {
+      throw new ForbiddenException('You can only manage availability for your own cars');
+    }
+
+    // By default, all days are available (no blocked dates)
+    // availableDays parameter is informational - actual availability is determined by
+    // absence of blocked dates and rentals
+
+    return {
+      carId: id,
+      message: `Car initialized with ${availableDays} days of availability`,
+      availableDays,
     };
   }
 }

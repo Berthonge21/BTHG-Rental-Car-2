@@ -157,4 +157,71 @@ export class CarsController {
     const userAgencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
     return this.carsService.remove(id, userAgencyId);
   }
+
+  @Get(':id/availability/calendar')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'superAdmin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get availability calendar (Admin)',
+    description: 'Get blocked dates and rental dates for a car',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'Car ID' })
+  @ApiQuery({ name: 'year', type: Number, description: 'Year', example: 2024 })
+  @ApiQuery({ name: 'month', type: Number, required: false, description: 'Month (1-12)', example: 3 })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Availability calendar' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Car not found' })
+  async getAvailabilityCalendar(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('year') year: string,
+    @Query('month') month?: string,
+  ) {
+    return this.carsService.getAvailabilityCalendar(
+      id,
+      parseInt(year, 10),
+      month ? parseInt(month, 10) : undefined,
+    );
+  }
+
+  @Post(':id/availability/block')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'superAdmin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Block dates (Admin)',
+    description: 'Block specific dates for a car. Blocked dates cannot be booked.',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'Car ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Dates blocked successfully' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Car not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Cannot manage availability for another agency' })
+  async blockDates(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { dates: string[] },
+    @CurrentUser() user: { agencyId?: number; role: string },
+  ) {
+    const userAgencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
+    return this.carsService.blockDates(id, body.dates, userAgencyId);
+  }
+
+  @Post(':id/availability/unblock')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin', 'superAdmin')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Unblock dates (Admin)',
+    description: 'Unblock specific dates for a car.',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'Car ID' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Dates unblocked successfully' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Car not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Cannot manage availability for another agency' })
+  async unblockDates(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { dates: string[] },
+    @CurrentUser() user: { agencyId?: number; role: string },
+  ) {
+    const userAgencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
+    return this.carsService.unblockDates(id, body.dates, userAgencyId);
+  }
 }

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsEmail, MaxLength, IsOptional, IsEnum } from 'class-validator';
-import { Status } from '@automobelite/database';
+import { Status } from '@rentalcar/database';
 
 export class UpdateAgencyDto {
   @ApiPropertyOptional({

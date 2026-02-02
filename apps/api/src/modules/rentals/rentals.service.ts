@@ -8,7 +8,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateRentalDto, UpdateRentalDto, RentalQueryDto } from './dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
-import { Prisma } from '@automobelite/database';
+import { Prisma } from '@rentalcar/database';
 
 @Injectable()
 export class RentalsService {

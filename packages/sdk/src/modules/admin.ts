@@ -29,6 +29,14 @@ export class AdminModule {
   }
 
   /**
+   * Get rental details for admin's agency
+   */
+  async getRental(id: number): Promise<Rental> {
+    const response = await this.http.get<Rental>(`/admin/rentals/${id}`);
+    return response.data;
+  }
+
+  /**
    * Update rental status (approve, complete, cancel)
    */
   async updateRentalStatus(id: number, data: UpdateRentalStatusDto): Promise<Rental> {

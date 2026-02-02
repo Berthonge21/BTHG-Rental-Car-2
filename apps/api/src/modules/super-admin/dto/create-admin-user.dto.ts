@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsEmail, MinLength, MaxLength, IsOptional, IsEnum } from 'class-validator';
-import { UserRole } from '@automobelite/database';
+import { UserRole } from '@rentalcar/database';
 
 export class CreateAdminUserDto {
   @ApiProperty({

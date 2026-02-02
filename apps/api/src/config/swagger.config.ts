@@ -3,9 +3,9 @@ import { INestApplication } from '@nestjs/common';
 
 export function setupSwagger(app: INestApplication): void {
   const config = new DocumentBuilder()
-    .setTitle('Automobelite API')
+    .setTitle('Bthg RentalCar API')
     .setDescription(
-      'The Automobelite car rental platform API documentation. ' +
+      'The Bthg RentalCar platform API documentation. ' +
         'This API provides endpoints for managing agencies, cars, clients, and rentals.',
     )
     .setVersion('1.0')

@@ -206,8 +206,23 @@ export class SuperAdminService {
       this.prisma.agencyUser.count(),
     ]);
 
+    // Transform to include agencyId and agencyName directly
+    const transformedUsers = users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      firstname: user.firstname,
+      role: user.role,
+      status: user.status,
+      image: user.image,
+      createdAt: user.createdAt,
+      agencyId: user.Agency?.id || null,
+      agencyName: user.Agency?.name || null,
+      agency: user.Agency || null,
+    }));
+
     return {
-      data: users,
+      data: transformedUsers,
       meta: createPaginationMeta(page, limit, total),
     };
   }

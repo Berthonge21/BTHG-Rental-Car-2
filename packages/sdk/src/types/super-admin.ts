@@ -37,8 +37,12 @@ export interface AdminUser {
   email: string;
   role: UserRole;
   image?: string;
-  agencyId?: number;
-  agencyName?: string;
+  agencyId?: number | null;
+  agencyName?: string | null;
+  agency?: {
+    id: number;
+    name: string;
+  } | null;
   createdAt: string;
 }
 

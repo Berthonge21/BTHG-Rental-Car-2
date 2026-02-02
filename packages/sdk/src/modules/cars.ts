@@ -5,6 +5,9 @@ import type {
   CreateCarDto,
   UpdateCarDto,
   CarAvailability,
+  CarAvailabilityCalendar,
+  BlockDatesResponse,
+  UnblockDatesResponse,
   PaginatedResponse,
 } from '../types';
 
@@ -40,6 +43,43 @@ export class CarsModule {
     const response = await this.http.get<CarAvailability>(`/cars/${id}/availability`, {
       params: { startDate, endDate },
     });
+    return response.data;
+  }
+
+  /**
+   * Get availability calendar for a car (admin only)
+   */
+  async getAvailabilityCalendar(
+    id: number,
+    year: number,
+    month?: number
+  ): Promise<CarAvailabilityCalendar> {
+    const response = await this.http.get<CarAvailabilityCalendar>(
+      `/cars/${id}/availability/calendar`,
+      { params: { year, month } }
+    );
+    return response.data;
+  }
+
+  /**
+   * Block dates for a car (admin only)
+   */
+  async blockDates(id: number, dates: string[]): Promise<BlockDatesResponse> {
+    const response = await this.http.post<BlockDatesResponse>(
+      `/cars/${id}/availability/block`,
+      { dates }
+    );
+    return response.data;
+  }
+
+  /**
+   * Unblock dates for a car (admin only)
+   */
+  async unblockDates(id: number, dates: string[]): Promise<UnblockDatesResponse> {
+    const response = await this.http.post<UnblockDatesResponse>(
+      `/cars/${id}/availability/unblock`,
+      { dates }
+    );
     return response.data;
   }
 

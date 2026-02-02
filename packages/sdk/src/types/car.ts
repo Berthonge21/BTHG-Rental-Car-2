@@ -80,4 +80,53 @@ export interface CarAvailability {
     startDate: string;
     endDate: string;
   };
+  blockedDates?: string[];
+}
+
+export interface BlockedDate {
+  id: number;
+  date: string;
+  type: 'manual';
+}
+
+export interface RentalBlock {
+  id: number;
+  startDate: string;
+  endDate: string;
+  status: string;
+  client: {
+    id: number;
+    firstname: string;
+    name: string;
+  };
+  type: 'rental';
+}
+
+export interface CarAvailabilityCalendar {
+  carId: number;
+  period: {
+    year: number;
+    month?: number;
+    startDate: string;
+    endDate: string;
+  };
+  stats: {
+    totalDays: number;
+    availableDays: number;
+    rentalBlockedDays: number;
+    manuallyBlockedDays: number;
+  };
+  blockedDates: BlockedDate[];
+  rentals: RentalBlock[];
+}
+
+export interface BlockDatesResponse {
+  carId: number;
+  blockedDates: string[];
+  count: number;
+}
+
+export interface UnblockDatesResponse {
+  carId: number;
+  unblockedCount: number;
 }

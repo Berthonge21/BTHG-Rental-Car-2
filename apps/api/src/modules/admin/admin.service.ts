@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RentalsService } from '../rentals/rentals.service';
 import { RentalQueryDto } from '../rentals/dto';
@@ -66,5 +66,44 @@ export class AdminService {
     agencyId: number,
   ) {
     return this.rentalsService.updateStatus(rentalId, status, agencyId);
+  }
+
+  async getRental(rentalId: number, agencyId?: number) {
+    const rental = await this.prisma.rental.findUnique({
+      where: { id: rentalId },
+      include: {
+        car: {
+          include: {
+            Agency: {
+              select: {
+                id: true,
+                name: true,
+                telephone: true,
+              },
+            },
+          },
+        },
+        client: {
+          select: {
+            id: true,
+            firstname: true,
+            name: true,
+            email: true,
+            telephone: true,
+          },
+        },
+      },
+    });
+
+    if (!rental) {
+      throw new NotFoundException(`Rental with ID ${rentalId} not found`);
+    }
+
+    // If agencyId is provided, verify the rental belongs to that agency
+    if (agencyId && rental.car.agencyId !== agencyId) {
+      throw new ForbiddenException('You can only view rentals for your own agency');
+    }
+
+    return rental;
   }
 }

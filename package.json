@@ -1,5 +1,5 @@
 {
-  "name": "automobelite-v2",
+  "name": "bthg-rentalcar",
   "version": "0.1.0",
   "private": true,
   "workspaces": [
@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
-    "dev:api": "turbo run dev --filter=@automobelite/api",
+    "dev:api": "turbo run dev --filter=@bthgrentalcar/api",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
