@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { setupSwagger } from './config/swagger.config';
@@ -34,6 +35,10 @@ async function bootstrap(): Promise<void> {
   const apiPrefix = configService.get<string>('apiPrefix') || 'api/v1';
   const corsConfig = configService.get<{ origins: string[] }>('cors') || { origins: ['http://localhost:3000'] };
   const swaggerConfig = configService.get<{ enabled: boolean }>('swagger') || { enabled: true };
+
+  // Increase body parser limit for base64 image uploads
+  app.use(json({ limit: '15mb' }));
+  app.use(urlencoded({ extended: true, limit: '15mb' }));
 
   // Set global prefix
   app.setGlobalPrefix(apiPrefix);
