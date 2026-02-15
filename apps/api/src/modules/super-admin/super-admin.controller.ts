@@ -23,6 +23,7 @@ import {
   CreateAdminUserDto,
   AssignAgencyDto,
   GlobalStatsDto,
+  UpdateAdminStatusDto,
 } from './dto';
 import { RentalQueryDto, RentalResponseDto } from '../rentals/dto';
 import { AgencyResponseDto } from '../agencies/dto';
@@ -111,6 +112,26 @@ export class SuperAdminController {
       page ? parseInt(page, 10) : undefined,
       limit ? parseInt(limit, 10) : undefined,
     );
+  }
+
+  @Patch('users/:id/status')
+  @ApiOperation({
+    summary: 'Update admin user status',
+    description: 'Activate or deactivate an admin user (super-admin only). Deactivating an admin also deactivates their agency.',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'Admin user ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Admin status updated successfully',
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Admin user not found' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Cannot change status (active rentals or super admin)' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Requires super-admin role' })
+  async updateAdminStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateAdminStatusDto,
+  ) {
+    return this.superAdminService.updateAdminStatus(id, dto);
   }
 
   @Post('users')

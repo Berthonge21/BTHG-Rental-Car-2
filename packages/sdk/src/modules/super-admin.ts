@@ -10,6 +10,7 @@ import type {
   Rental,
   RentalQueryDto,
   PaginatedResponse,
+  Status,
 } from '../types';
 
 export class SuperAdminModule {
@@ -67,6 +68,17 @@ export class SuperAdminModule {
   async assignAgency(userId: number, data: AssignAgencyDto): Promise<AdminUser> {
     const response = await this.http.patch<AdminUser>(
       `/super-admin/users/${userId}/agency`,
+      data
+    );
+    return response.data;
+  }
+
+  /**
+   * Update a user's account status (activate/deactivate)
+   */
+  async updateUserStatus(userId: number, data: { status: Status }): Promise<AdminUser> {
+    const response = await this.http.patch<AdminUser>(
+      `/super-admin/users/${userId}/status`,
       data
     );
     return response.data;

@@ -52,6 +52,8 @@ export interface CurrentUser {
   firstname: string;
   name: string;
   role: string;
+  status?: string;
+  deactivatedAt?: string | null;
   telephone?: string;
   address?: string;
   city?: string;

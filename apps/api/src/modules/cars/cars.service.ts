@@ -8,7 +8,7 @@ import { Prisma } from '@rentalcar/database';
 export class CarsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(query: CarQueryDto) {
+  async findAll(query: CarQueryDto, clientFacing = false) {
     const {
       page = 1,
       limit = 10,
@@ -33,6 +33,7 @@ export class CarsService {
       ...(fuel && { fuel: { contains: fuel, mode: 'insensitive' } }),
       ...(gearBox && { gearBox: { contains: gearBox, mode: 'insensitive' } }),
       ...(minYear && { year: { gte: minYear } }),
+      ...(clientFacing && { Agency: { status: 'activate' } }),
     };
 
     const [cars, total] = await Promise.all([
@@ -59,7 +60,7 @@ export class CarsService {
     };
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, clientFacing = false) {
     const car = await this.prisma.car.findUnique({
       where: { id },
       include: {
@@ -69,6 +70,7 @@ export class CarsService {
             name: true,
             telephone: true,
             email: true,
+            status: true,
           },
         },
         parking: true,
@@ -76,6 +78,10 @@ export class CarsService {
     });
 
     if (!car) {
+      throw new NotFoundException(`Car with ID ${id} not found`);
+    }
+
+    if (clientFacing && car.Agency.status === 'deactivate') {
       throw new NotFoundException(`Car with ID ${id} not found`);
     }
 

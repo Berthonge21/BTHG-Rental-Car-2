@@ -35,6 +35,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         throw new UnauthorizedException('User not found');
       }
 
+      if (client.status === 'deactivate') {
+        throw new UnauthorizedException('Account deactivated');
+      }
+
       return {
         id: client.id,
         email: client.email,
@@ -51,6 +55,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
       if (!agencyUser) {
         throw new UnauthorizedException('User not found');
+      }
+
+      if (agencyUser.status === 'deactivate') {
+        throw new UnauthorizedException('Account deactivated');
       }
 
       return {

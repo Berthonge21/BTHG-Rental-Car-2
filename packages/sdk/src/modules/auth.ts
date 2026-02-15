@@ -59,4 +59,12 @@ export class AuthModule {
     const response = await this.http.post<MessageResponse>('/auth/logout');
     return response.data;
   }
+
+  /**
+   * Reactivate a deactivated account using login credentials
+   */
+  async reactivateAccount(data: LoginDto): Promise<AuthResponse> {
+    const response = await this.http.post<AuthResponse>('/auth/reactivate', data);
+    return response.data;
+  }
 }

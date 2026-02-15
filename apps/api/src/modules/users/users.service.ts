@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateProfileDto } from './dto';
 
@@ -122,5 +122,68 @@ export class UsersService {
         updatedAt: true,
       },
     });
+  }
+
+  async deactivateAccount(userId: number, userType: 'client' | 'agency') {
+    if (userType === 'client') {
+      const activeRentals = await this.prisma.rental.findFirst({
+        where: {
+          clientId: userId,
+          status: { in: ['reserved', 'ongoing'] },
+        },
+      });
+
+      if (activeRentals) {
+        throw new BadRequestException(
+          'Cannot deactivate account with active rentals',
+        );
+      }
+
+      await this.prisma.client.update({
+        where: { id: userId },
+        data: {
+          status: 'deactivate',
+          deactivatedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+
+      return { message: 'Account deactivated successfully' };
+    }
+
+    const agencyUser = await this.prisma.agencyUser.findUnique({
+      where: { id: userId },
+      include: { Agency: true },
+    });
+
+    if (!agencyUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (agencyUser.Agency) {
+      const activeRentals = await this.prisma.rental.findFirst({
+        where: {
+          car: { agencyId: agencyUser.Agency.id },
+          status: { in: ['reserved', 'ongoing'] },
+        },
+      });
+
+      if (activeRentals) {
+        throw new BadRequestException(
+          'Cannot deactivate account while your agency has active rentals',
+        );
+      }
+    }
+
+    await this.prisma.agencyUser.update({
+      where: { id: userId },
+      data: {
+        status: 'deactivate',
+        deactivatedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    return { message: 'Account deactivated successfully' };
   }
 }

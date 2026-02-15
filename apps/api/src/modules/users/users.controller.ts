@@ -1,9 +1,11 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Body,
   UseGuards,
+  HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import {
@@ -14,6 +16,7 @@ import {
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateProfileDto, UserProfileResponseDto } from './dto';
+import { MessageResponseDto } from '../auth/dto/auth-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators';
 
@@ -37,6 +40,25 @@ export class UsersController {
   @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Not authenticated' })
   async getProfile(@CurrentUser() user: { id: number; type: 'client' | 'agency' }) {
     return this.usersService.getProfile(user.id, user.type);
+  }
+
+  @Post('me/deactivate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Deactivate current user account',
+    description: 'Deactivate the currently authenticated user account. Fails if the user has active rentals.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Account deactivated successfully',
+    type: MessageResponseDto,
+  })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Cannot deactivate with active rentals' })
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Not authenticated' })
+  async deactivateAccount(
+    @CurrentUser() user: { id: number; type: 'client' | 'agency' },
+  ) {
+    return this.usersService.deactivateAccount(user.id, user.type);
   }
 
   @Patch('me')
