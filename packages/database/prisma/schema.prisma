@@ -34,6 +34,7 @@ model Client {
   emailVerified Boolean    @default(false)
   role          ClientRole @default(user)
   status        Status     @default(deactivate)
+  deactivatedAt DateTime?  @map("deactivated_at")
   address       String     @db.VarChar(150)
   city          String     @db.VarChar(100)
   rentals       Rental[]
@@ -48,9 +49,10 @@ model AgencyUser {
   image     String?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @map("updated_at")
-  role      UserRole @default(admin)
-  status    Status   @default(activate)
-  Agency    Agency?
+  role          UserRole @default(admin)
+  status        Status   @default(activate)
+  deactivatedAt DateTime? @map("deactivated_at")
+  Agency        Agency?
 }
 
 model Agency {
@@ -119,7 +121,7 @@ model Rental {
   status       RentalStatus   @default(reserved)
   Notification Notification[]
   car          Car            @relation(fields: [carId], references: [id], onDelete: Cascade)
-  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client       Client         @relation(fields: [clientId], references: [id], onDelete: Restrict)
 }
 
 model Maintenance {

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateAdminUserDto, AssignAgencyDto } from './dto';
+import { CreateAdminUserDto, AssignAgencyDto, UpdateAdminStatusDto } from './dto';
 import { RentalsService } from '../rentals/rentals.service';
 import { RentalQueryDto } from '../rentals/dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
@@ -176,6 +176,86 @@ export class SuperAdminService {
     }
 
     return agency;
+  }
+
+  async updateAdminStatus(userId: number, dto: UpdateAdminStatusDto) {
+    const user = await this.prisma.agencyUser.findUnique({
+      where: { id: userId },
+      include: { Agency: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Admin user with ID ${userId} not found`);
+    }
+
+    if (user.role === 'superAdmin') {
+      throw new BadRequestException('Cannot change status of a Super Admin');
+    }
+
+    if (dto.status === 'deactivate' && user.Agency) {
+      const activeRentals = await this.prisma.rental.findFirst({
+        where: {
+          car: { agencyId: user.Agency.id },
+          status: { in: ['reserved', 'ongoing'] },
+        },
+      });
+
+      if (activeRentals) {
+        throw new BadRequestException(
+          'Cannot deactivate admin while their agency has active rentals',
+        );
+      }
+    }
+
+    const updatedUser = await this.prisma.agencyUser.update({
+      where: { id: userId },
+      data: {
+        status: dto.status,
+        deactivatedAt: dto.status === 'deactivate' ? null : null,
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        firstname: true,
+        role: true,
+        status: true,
+        image: true,
+        createdAt: true,
+        Agency: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    // Also update the agency status when deactivating/reactivating an admin
+    if (updatedUser.Agency) {
+      await this.prisma.agency.update({
+        where: { id: updatedUser.Agency.id },
+        data: {
+          status: dto.status,
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    return {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      name: updatedUser.name,
+      firstname: updatedUser.firstname,
+      role: updatedUser.role,
+      status: updatedUser.status,
+      image: updatedUser.image,
+      createdAt: updatedUser.createdAt,
+      agencyId: updatedUser.Agency?.id || null,
+      agencyName: updatedUser.Agency?.name || null,
+      agency: updatedUser.Agency || null,
+    };
   }
 
   async getAdminUsers(page = 1, limit = 10) {

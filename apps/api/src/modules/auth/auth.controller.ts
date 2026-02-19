@@ -15,7 +15,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { LoginDto, AdminLoginDto, RegisterDto, AuthResponseDto, RefreshTokenDto, MessageResponseDto } from './dto';
+import { LoginDto, AdminLoginDto, RegisterDto, AuthResponseDto, RefreshTokenDto, MessageResponseDto, ReactivateClientDto } from './dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser, Public } from '../../common/decorators';
 
@@ -95,6 +95,26 @@ export class AuthController {
   @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Invalid refresh token' })
   async refreshTokens(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshTokens(dto.refreshToken);
+  }
+
+  @Post('reactivate')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Reactivate client account',
+    description: 'Reactivate a self-deactivated client account with email and password. Admin-deactivated accounts cannot be reactivated this way.',
+  })
+  @ApiBody({ type: ReactivateClientDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Account reactivated and logged in successfully',
+    type: AuthResponseDto,
+  })
+  @ApiResponse({ status: HttpStatus.UNAUTHORIZED, description: 'Invalid credentials' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Account was deactivated by an administrator' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Account is already active' })
+  async reactivateClient(@Body() dto: ReactivateClientDto) {
+    return this.authService.reactivateClient(dto);
   }
 
   @Get('me')

@@ -130,15 +130,15 @@ bthg-rental-web/                  # Next.js Frontend
 
 | Module | Status | Endpoints |
 |--------|--------|-----------|
-| Authentication | ✅ Complete | 6 endpoints |
+| Authentication | ✅ Complete | 7 endpoints |
 | Agencies | ✅ Complete | 7 endpoints |
 | Cars | ✅ Complete | 9 endpoints |
 | Rentals | ✅ Complete | 5 endpoints |
-| Users | ✅ Complete | 2 endpoints |
+| Users | ✅ Complete | 3 endpoints |
 | Admin Dashboard | ✅ Complete | 4 endpoints |
-| Super Admin | ✅ Complete | 6 endpoints |
+| Super Admin | ✅ Complete | 7 endpoints |
 
-**Total: 39 API endpoints**
+**Total: 42 API endpoints**
 
 ### ✅ Phase 2: SDK Package (COMPLETE)
 
@@ -154,12 +154,13 @@ bthg-rental-web/                  # Next.js Frontend
 | Super Admin module (agencies, users) | ✅ Complete |
 | TypeScript types | ✅ Complete |
 | Auto token refresh | ✅ Complete |
+| Account deactivation/reactivation | ✅ Complete |
 
 ### ✅ Phase 3: Admin Frontend (COMPLETE)
 
 | Page | Status | Features |
 |------|--------|----------|
-| Login | ✅ Complete | Admin/SuperAdmin authentication |
+| Login | ✅ Complete | Admin/SuperAdmin authentication, deactivation alerts |
 | Admin Dashboard | ✅ Complete | Stats cards, recent rentals |
 | Cars List | ✅ Complete | Table, search, filters |
 | Car Create/Edit | ✅ Complete | Form validation |
@@ -167,7 +168,7 @@ bthg-rental-web/                  # Next.js Frontend
 | Car Availability | ✅ Complete | Calendar with range selection |
 | Rentals List | ✅ Complete | Status filters, pagination |
 | Rental Details | ✅ Complete | Status update actions |
-| Profile | ✅ Complete | View/edit profile |
+| Profile | ✅ Complete | View/edit profile, danger zone |
 
 ### ✅ Phase 4: Super Admin Frontend (COMPLETE)
 
@@ -177,17 +178,32 @@ bthg-rental-web/                  # Next.js Frontend
 | Agencies List | ✅ Complete | All agencies table |
 | Agency Create | ✅ Complete | Create with admin assignment |
 | Agency Details | ✅ Complete | Edit, view stats, cars, admins |
-| Admins List | ✅ Complete | All admin users table |
-| Admin Details | ✅ Complete | Assign/change agency |
+| Admins List | ✅ Complete | All admin users table, status toggle |
+| Admin Details | ✅ Complete | Assign/change agency, activate/deactivate |
 | Create Admin | ✅ Complete | Create new admin user |
 | All Rentals | ✅ Complete | Platform-wide rentals view |
 | Profile | ✅ Complete | View/edit profile |
 
 ---
 
+### ✅ Phase 5: Account Lifecycle Management (COMPLETE)
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Account Deactivation | ✅ Complete | Soft-delete with `deactivatedAt` timestamp |
+| Login Gate | ✅ Complete | Block deactivated users at login and JWT validation |
+| Active Rental Check | ✅ Complete | Prevent deactivation with ongoing/reserved rentals |
+| Admin Self-Deactivation | ✅ Complete | Profile danger zone with confirmation |
+| Client Self-Reactivation | ✅ Complete | Reactivate from login page (self-deactivated only) |
+| SuperAdmin Status Mgmt | ✅ Complete | Activate/deactivate admins with agency sync |
+| Query Filtering | ✅ Complete | Hide deactivated agency cars from clients |
+| Cascade Delete Protection | ✅ Complete | Rental.client uses `onDelete: Restrict` |
+
+---
+
 ## 🚧 Pending Features (Post-MVP)
 
-### Phase 5: Client Portal (NOT STARTED)
+### Phase 6: Client Portal (NOT STARTED)
 
 | Feature | Priority | Description |
 |---------|----------|-------------|
@@ -200,7 +216,7 @@ bthg-rental-web/                  # Next.js Frontend
 | Cancel Rental | Medium | Cancel reserved rentals |
 | Profile Management | Medium | Update profile, change password |
 
-### Phase 6: Enhanced Features (NOT STARTED)
+### Phase 7: Enhanced Features (NOT STARTED)
 
 | Feature | Priority | Description |
 |---------|----------|-------------|
@@ -220,7 +236,7 @@ bthg-rental-web/                  # Next.js Frontend
 ### Prerequisites
 
 - Node.js 18+
-- pnpm 8+
+- Yarn 1.22+
 - PostgreSQL 14+
 
 ### Installation
@@ -231,30 +247,30 @@ git clone https://github.com/Berthonge21/BTHG-Rental-Car-2.git
 cd BTHG-Rental-Car-2
 
 # Install dependencies
-pnpm install
+yarn install
 
 # Generate Prisma client
-pnpm db:generate
+yarn db:generate
 
 # Set up environment variables
 cp apps/api/.env.example apps/api/.env
 # Edit .env with your database credentials
 
 # Push schema to database
-pnpm db:push
+yarn db:push
 
 # Seed test data
-pnpm db:seed
+yarn db:seed
 ```
 
 ### Running the Backend
 
 ```bash
 # Development mode
-pnpm dev:api
+yarn dev:api
 
 # Production build
-pnpm build
+yarn build
 ```
 
 - API: http://localhost:4000/api/v1
@@ -280,13 +296,14 @@ yarn dev
 
 ## API Endpoints
 
-### Authentication (6 endpoints)
+### Authentication (7 endpoints)
 
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | POST | `/auth/login` | Client login | Public |
 | POST | `/auth/admin/login` | Admin/SuperAdmin login | Public |
 | POST | `/auth/register` | Register new client | Public |
+| POST | `/auth/reactivate` | Reactivate self-deactivated client account | Public |
 | POST | `/auth/refresh` | Refresh access token | Public |
 | GET | `/auth/me` | Get current user profile | Authenticated |
 | POST | `/auth/logout` | Logout (client-side) | Authenticated |
@@ -327,12 +344,13 @@ yarn dev
 | PATCH | `/rentals/:id` | Update rental | Client |
 | DELETE | `/rentals/:id` | Cancel rental | Client |
 
-### Users (2 endpoints)
+### Users (3 endpoints)
 
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
 | GET | `/users/me` | Get user profile | Authenticated |
 | PATCH | `/users/me` | Update user profile | Authenticated |
+| POST | `/users/me/deactivate` | Deactivate own account | Authenticated |
 
 ### Admin Dashboard (4 endpoints)
 
@@ -343,7 +361,7 @@ yarn dev
 | GET | `/admin/rentals/:id` | Get rental details | Admin |
 | PATCH | `/admin/rentals/:id` | Update rental status | Admin |
 
-### Super Admin (6 endpoints)
+### Super Admin (7 endpoints)
 
 | Method | Endpoint | Description | Access |
 |--------|----------|-------------|--------|
@@ -353,6 +371,7 @@ yarn dev
 | GET | `/super-admin/users` | List all admin users | SuperAdmin |
 | POST | `/super-admin/users` | Create admin user | SuperAdmin |
 | PATCH | `/super-admin/users/:id/agency` | Assign admin to agency | SuperAdmin |
+| PATCH | `/super-admin/users/:id/status` | Activate/deactivate admin | SuperAdmin |
 
 ---
 
@@ -393,13 +412,13 @@ const rental = await api.admin.getRental(rentalId);
 
 | Module | Methods |
 |--------|---------|
-| `api.auth` | `login`, `loginAdmin`, `register`, `refresh`, `me`, `logout` |
+| `api.auth` | `login`, `loginAdmin`, `register`, `reactivateAccount`, `refresh`, `me`, `logout` |
 | `api.agencies` | `list`, `get`, `create`, `update`, `delete`, `getCars`, `getStats` |
 | `api.cars` | `list`, `get`, `create`, `update`, `delete`, `checkAvailability`, `getCalendar`, `blockDates`, `unblockDates` |
 | `api.rentals` | `list`, `get`, `create`, `update`, `cancel` |
-| `api.users` | `getProfile`, `updateProfile` |
+| `api.users` | `getProfile`, `updateProfile`, `deactivateAccount` |
 | `api.admin` | `getDashboard`, `getRentals`, `getRental`, `updateRentalStatus` |
-| `api.superAdmin` | `getDashboard`, `getAgencies`, `getRentals`, `getUsers`, `createUser`, `assignAgency` |
+| `api.superAdmin` | `getDashboard`, `getAgencies`, `getRentals`, `getUsers`, `createUser`, `assignAgency`, `updateUserStatus` |
 
 ---
 
@@ -411,8 +430,8 @@ https://github.com/Berthonge21/bthg-rental-web
 
 ### Features
 
-- **Admin Portal**: Agency management, car fleet, rentals, availability
-- **Super Admin Portal**: Platform oversight, agencies, admin users
+- **Admin Portal**: Agency management, car fleet, rentals, availability, account deactivation
+- **Super Admin Portal**: Platform oversight, agencies, admin users, status management
 - **Modern UI**: Chakra UI with dark mode support
 - **Type-Safe**: Full TypeScript with SDK integration
 - **Responsive**: Mobile-friendly design
@@ -459,13 +478,13 @@ NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
 ### Backend
 
 ```bash
-pnpm dev:api          # Start API in dev mode
-pnpm build            # Build all packages
-pnpm db:generate      # Generate Prisma client
-pnpm db:push          # Push schema to database
-pnpm db:seed          # Seed test data
-pnpm db:studio        # Open Prisma Studio
-pnpm lint             # Run ESLint
+yarn dev:api          # Start API in dev mode
+yarn build            # Build all packages
+yarn db:generate      # Generate Prisma client
+yarn db:push          # Push schema to database
+yarn db:seed          # Seed test data
+yarn db:studio        # Open Prisma Studio
+yarn lint             # Run ESLint
 ```
 
 ### Frontend
@@ -480,25 +499,28 @@ yarn lint             # Run ESLint
 
 ## Roadmap
 
-### Q1 2024 - MVP (COMPLETE ✅)
+### MVP (COMPLETE)
 - [x] Backend API with all core endpoints
 - [x] TypeScript SDK package
 - [x] Admin dashboard (cars, rentals, availability)
 - [x] Super admin dashboard (agencies, admins)
+- [x] Account deactivation & reactivation lifecycle
+- [x] Login gate enforcement for deactivated accounts
+- [x] SuperAdmin admin status management
 
-### Q2 2024 - Client Portal
+### Upcoming - Client Portal
 - [ ] Client authentication (login, register)
 - [ ] Car browsing catalog
 - [ ] Rental booking flow
 - [ ] Rental history
 
-### Q3 2024 - Enhanced Features
+### Upcoming - Enhanced Features
 - [ ] Email verification
 - [ ] Password reset
 - [ ] Notifications system
 - [ ] Payment integration
 
-### Q4 2024 - Advanced Features
+### Future - Advanced Features
 - [ ] Mobile app (React Native)
 - [ ] Advanced analytics
 - [ ] Multi-language support

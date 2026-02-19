@@ -48,7 +48,7 @@ export class CarsController {
     type: [CarResponseDto],
   })
   async findAll(@Query() query: CarQueryDto) {
-    return this.carsService.findAll(query);
+    return this.carsService.findAll(query, true);
   }
 
   @Get(':id')
@@ -65,7 +65,7 @@ export class CarsController {
   })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Car not found' })
   async findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.carsService.findOne(id);
+    return this.carsService.findOne(id, true);
   }
 
   @Get(':id/availability')

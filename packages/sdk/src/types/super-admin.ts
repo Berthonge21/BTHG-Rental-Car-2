@@ -1,4 +1,4 @@
-import type { PaginationQuery, UserRole } from './common';
+import type { PaginationQuery, Status, UserRole } from './common';
 
 // Create Admin User DTO
 export interface CreateAdminUserDto {
@@ -36,6 +36,8 @@ export interface AdminUser {
   name: string;
   email: string;
   role: UserRole;
+  status: Status;
+  deactivatedAt: string | null;
   image?: string;
   agencyId?: number | null;
   agencyName?: string | null;

@@ -1,9 +1,15 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
-import { LoginDto, AdminLoginDto, RegisterDto } from './dto';
+import { LoginDto, AdminLoginDto, RegisterDto, ReactivateClientDto } from './dto';
 
 @Injectable()
 export class AuthService {
@@ -28,6 +34,15 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (client.status === 'deactivate') {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'ACCOUNT_DEACTIVATED',
+        message: 'Your account has been deactivated.',
+        selfDeactivated: !!client.deactivatedAt,
+      });
+    }
+
     return this.generateTokens(client, 'client');
   }
 
@@ -45,6 +60,15 @@ export class AuthService {
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (agencyUser.status === 'deactivate') {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'ACCOUNT_DEACTIVATED',
+        message: 'Your account has been deactivated. Please contact your  Administrator.',
+        selfDeactivated: false,
+      });
     }
 
     return this.generateTokens(agencyUser, 'agency', agencyUser.Agency?.id);
@@ -92,6 +116,10 @@ export class AuthService {
           throw new UnauthorizedException('User not found');
         }
 
+        if (client.status === 'deactivate') {
+          throw new UnauthorizedException('Account deactivated');
+        }
+
         return this.generateTokens(client, 'client');
       } else {
         const agencyUser = await this.prisma.agencyUser.findUnique({
@@ -103,11 +131,52 @@ export class AuthService {
           throw new UnauthorizedException('User not found');
         }
 
+        if (agencyUser.status === 'deactivate') {
+          throw new UnauthorizedException('Account deactivated');
+        }
+
         return this.generateTokens(agencyUser, 'agency', agencyUser.Agency?.id);
       }
     } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
+  }
+
+  async reactivateClient(dto: ReactivateClientDto) {
+    const client = await this.prisma.client.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (!client) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const isPasswordValid = await bcrypt.compare(dto.password, client.password);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (client.status !== 'deactivate') {
+      throw new BadRequestException('Account is already active');
+    }
+
+    if (!client.deactivatedAt) {
+      throw new ForbiddenException(
+        'Your account was deactivated by an administrator. Please contact support.',
+      );
+    }
+
+    const reactivatedClient = await this.prisma.client.update({
+      where: { id: client.id },
+      data: {
+        status: 'activate',
+        deactivatedAt: null,
+        updatedAt: new Date(),
+      },
+    });
+
+    return this.generateTokens(reactivatedClient, 'client');
   }
 
   async getMe(userId: number, type: 'client' | 'agency') {
