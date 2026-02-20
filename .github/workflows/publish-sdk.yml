@@ -1,0 +1,50 @@
+name: Publish SDK to GitHub Packages
+
+on:
+  push:
+    tags:
+      - 'sdk/v*' # Trigger on tags like sdk/v1.0.0, sdk/v1.2.3
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (build only, do not publish)'
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    name: Build & Publish @bthgrentalcar/sdk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@bthgrentalcar'
+
+      - name: Install SDK dependencies
+        working-directory: packages/sdk
+        run: npm install
+
+      - name: Build SDK
+        working-directory: packages/sdk
+        run: npm run build
+
+      - name: Verify dist output
+        working-directory: packages/sdk
+        run: ls -la dist/
+
+      - name: Publish to GitHub Packages
+        if: ${{ !inputs.dry_run }}
+        working-directory: packages/sdk
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
