@@ -47,4 +47,4 @@ jobs:
         working-directory: packages/sdk
         run: npm publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
