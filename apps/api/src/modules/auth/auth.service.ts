@@ -89,6 +89,7 @@ export class AuthService {
       data: {
         ...dto,
         password: hashedPassword,
+        status: 'activate',
       },
     });
 

@@ -33,7 +33,7 @@ model Client {
   updatedAt     DateTime   @default(now()) @map("updated_at")
   emailVerified Boolean    @default(false)
   role          ClientRole @default(user)
-  status        Status     @default(deactivate)
+  status        Status     @default(activate)
   deactivatedAt DateTime?  @map("deactivated_at")
   address       String     @db.VarChar(150)
   city          String     @db.VarChar(100)
