@@ -6,7 +6,7 @@
       "outputs": ["dist/**"]
     },
     "dev": {
-      "dependsOn": ["^build", "^db:generate"],
+      "dependsOn": ["^build", "^db:generate", "^db:deploy"],
       "cache": false,
       "persistent": true
     },
@@ -21,6 +21,9 @@
       "outputs": []
     },
     "db:push": {
+      "cache": false
+    },
+    "db:deploy": {
       "cache": false
     },
     "db:studio": {
