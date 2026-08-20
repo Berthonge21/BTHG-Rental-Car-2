@@ -28,8 +28,6 @@ model Notification {
   createdAt     DateTime @default(now()) @map("created_at")
   Agency        Agency   @relation(fields: [agencyId], references: [id])
   Reservation   Rental?  @relation(fields: [reservationId], references: [id])
-
-  @@index([agencyId, readStatus])
 }
 
 model Client {
@@ -106,8 +104,6 @@ model Parking {
   city      String   @db.VarChar(200)
   Car       Car[]
   Agency    Agency   @relation(fields: [agencyId], references: [id])
-
-  @@index([agencyId])
 }
 
 model Car {
@@ -132,9 +128,6 @@ model Car {
   parking      Parking?       @relation(fields: [parkingId], references: [id])
   maintenances Maintenance[]
   rentals      Rental[]
-
-  @@index([agencyId])
-  @@index([agencyId, createdAt])
 }
 
 model Rental {
@@ -150,16 +143,6 @@ model Rental {
   Notification Notification[]
   car          Car            @relation(fields: [carId], references: [id], onDelete: Cascade)
   client       Client         @relation(fields: [clientId], references: [id], onDelete: Restrict)
-
-  // A GiST exclusion constraint preventing overlapping reserved/ongoing
-  // bookings for the same car lives in the
-  // add_indexes_and_booking_exclusion_constraint migration — Prisma's
-  // schema DSL cannot express EXCLUDE constraints, so it is not
-  // represented here and migrate diff will not see it.
-  @@index([clientId])
-  @@index([carId, status])
-  @@index([status, endDate])
-  @@index([carId, startDate, endDate])
 }
 
 model Maintenance {
@@ -170,8 +153,6 @@ model Maintenance {
   endDate     DateTime
   startDate   DateTime
   car         Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
-
-  @@index([carId])
 }
 
 model Availability {

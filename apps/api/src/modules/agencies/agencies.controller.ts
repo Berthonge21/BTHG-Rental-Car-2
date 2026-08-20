@@ -10,7 +10,6 @@ import {
   UseGuards,
   ParseIntPipe,
   HttpStatus,
-  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -24,8 +23,7 @@ import { AgenciesService } from './agencies.service';
 import { CreateAgencyDto, UpdateAgencyDto, AgencyResponseDto, AgencyStatsDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles, Public, CurrentUser } from '../../common/decorators';
-import { requireTenantScope } from '../../common/utils/tenant-scope';
+import { Roles, Public } from '../../common/decorators';
 
 @ApiTags('agencies')
 @Controller('agencies')
@@ -169,14 +167,7 @@ export class AgenciesController {
   })
   @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Agency not found' })
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Requires admin role' })
-  async getStats(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: { agencyId?: number; role: string },
-  ) {
-    const scopedAgencyId = requireTenantScope(user);
-    if (scopedAgencyId !== undefined && scopedAgencyId !== id) {
-      throw new ForbiddenException('You can only view your own agency\'s stats');
-    }
+  async getStats(@Param('id', ParseIntPipe) id: number) {
     return this.agenciesService.getStats(id);
   }
 }

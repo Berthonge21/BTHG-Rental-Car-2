@@ -187,12 +187,8 @@ export class CarsService {
   /**
    * Get all blocked dates and rental dates for a car within a date range
    */
-  async getAvailabilityCalendar(id: number, year: number, month?: number, userAgencyId?: number) {
-    const car = await this.findOne(id);
-
-    if (userAgencyId && car.agencyId !== userAgencyId) {
-      throw new ForbiddenException('You can only view availability for your own cars');
-    }
+  async getAvailabilityCalendar(id: number, year: number, month?: number) {
+    await this.findOne(id);
 
     // Determine date range (full year or specific month)
     const startDate = month

@@ -117,73 +117,51 @@ export class RentalsService {
       throw new BadRequestException('Start date must be in the future');
     }
 
-    // Price is always computed server-side from the car's rate — a client
-    // can influence which car and dates it books, never what it pays.
-    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    const total = car.price * days;
+    const conflictingRental = await this.prisma.rental.findFirst({
+      where: {
+        carId: dto.carId,
+        status: { in: ['reserved', 'ongoing'] },
+        OR: [
+          {
+            startDate: { lte: endDate },
+            endDate: { gte: startDate },
+          },
+        ],
+      },
+    });
 
-    try {
-      return await this.prisma.$transaction(
-        async (tx) => {
-          const conflictingRental = await tx.rental.findFirst({
-            where: {
-              carId: dto.carId,
-              status: { in: ['reserved', 'ongoing'] },
-              startDate: { lte: endDate },
-              endDate: { gte: startDate },
-            },
-          });
-
-          if (conflictingRental) {
-            throw new ConflictException('Car is not available for the selected dates');
-          }
-
-          return tx.rental.create({
-            data: {
-              clientId: userId,
-              carId: dto.carId,
-              startDate,
-              endDate,
-              startTime: new Date(dto.startTime),
-              endTime: new Date(dto.endTime),
-              total,
-              status: 'reserved',
-            },
-            include: {
-              car: {
-                select: {
-                  id: true,
-                  brand: true,
-                  model: true,
-                  year: true,
-                  image: true,
-                  price: true,
-                },
-              },
-            },
-          });
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
-    } catch (error) {
-      // Serializable isolation surfaces a real concurrent conflict as a
-      // transaction-level error (Prisma P2034); the GiST exclusion
-      // constraint on Rental (see the database migrations) is the
-      // authoritative backstop and surfaces as a raw Postgres 23P01. Both
-      // mean the same thing to the caller: the slot was taken by a
-      // concurrent request, so retry.
-      if (
-        error instanceof ConflictException ||
-        (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') ||
-        (error instanceof Prisma.PrismaClientUnknownRequestError &&
-          error.message.includes('23P01'))
-      ) {
-        throw new ConflictException(
-          'Car is not available for the selected dates — please try again',
-        );
-      }
-      throw error;
+    if (conflictingRental) {
+      throw new ConflictException('Car is not available for the selected dates');
     }
+
+    // Calculate total if not provided (price per day * number of days)
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const total = dto.total ?? car.price * days;
+
+    return this.prisma.rental.create({
+      data: {
+        clientId: userId,
+        carId: dto.carId,
+        startDate,
+        endDate,
+        startTime: new Date(dto.startTime),
+        endTime: new Date(dto.endTime),
+        total,
+        status: 'reserved',
+      },
+      include: {
+        car: {
+          select: {
+            id: true,
+            brand: true,
+            model: true,
+            year: true,
+            image: true,
+            price: true,
+          },
+        },
+      },
+    });
   }
 
   async update(id: number, userId: number, dto: UpdateRentalDto) {

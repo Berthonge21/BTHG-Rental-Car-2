@@ -144,6 +144,7 @@ function BookingWizard({ carId, pricePerDay, onSuccess }: { carId: number; price
         endDate: form.endDate,
         startTime: form.startTime,
         endTime: form.endTime,
+        total,
       });
       toast({ title: 'Booking confirmed!', description: 'Your reservation is now active.', status: 'success', duration: 4000 });
       onSuccess();

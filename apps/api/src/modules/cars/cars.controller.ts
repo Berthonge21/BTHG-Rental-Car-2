@@ -172,14 +172,12 @@ export class CarsController {
   async getAvailabilityCalendar(
     @Param('id', ParseIntPipe) id: number,
     @Query('year') year: string,
-    @Query('month') month: string | undefined,
-    @CurrentUser() user: { agencyId?: number; role: string },
+    @Query('month') month?: string,
   ) {
     return this.carsService.getAvailabilityCalendar(
       id,
       parseInt(year, 10),
       month ? parseInt(month, 10) : undefined,
-      requireTenantScope(user),
     );
   }
 

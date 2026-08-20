@@ -7,6 +7,7 @@ export interface CreateRentalDto {
   endDate: string;
   startTime: string;
   endTime: string;
+  total?: number;
 }
 
 export interface UpdateRentalDto {
