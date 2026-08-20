@@ -30,6 +30,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles, CurrentUser, Public } from '../../common/decorators';
+import { requireTenantScope } from '../../common/utils/tenant-scope';
 
 @ApiTags('cars')
 @Controller('cars')
@@ -109,8 +110,7 @@ export class CarsController {
     @Body() dto: CreateCarDto,
     @CurrentUser() user: { agencyId?: number; role: string },
   ) {
-    const userAgencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
-    return this.carsService.create(dto, userAgencyId);
+    return this.carsService.create(dto, requireTenantScope(user));
   }
 
   @Put(':id')
@@ -134,8 +134,7 @@ export class CarsController {
     @Body() dto: UpdateCarDto,
     @CurrentUser() user: { agencyId?: number; role: string },
   ) {
-    const userAgencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
-    return this.carsService.update(id, dto, userAgencyId);
+    return this.carsService.update(id, dto, requireTenantScope(user));
   }
 
   @Delete(':id')
@@ -154,8 +153,7 @@ export class CarsController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: { agencyId?: number; role: string },
   ) {
-    const userAgencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
-    return this.carsService.remove(id, userAgencyId);
+    return this.carsService.remove(id, requireTenantScope(user));
   }
 
   @Get(':id/availability/calendar')
@@ -200,8 +198,7 @@ export class CarsController {
     @Body() body: { dates: string[] },
     @CurrentUser() user: { agencyId?: number; role: string },
   ) {
-    const userAgencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
-    return this.carsService.blockDates(id, body.dates, userAgencyId);
+    return this.carsService.blockDates(id, body.dates, requireTenantScope(user));
   }
 
   @Post(':id/availability/unblock')
@@ -221,7 +218,6 @@ export class CarsController {
     @Body() body: { dates: string[] },
     @CurrentUser() user: { agencyId?: number; role: string },
   ) {
-    const userAgencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
-    return this.carsService.unblockDates(id, body.dates, userAgencyId);
+    return this.carsService.unblockDates(id, body.dates, requireTenantScope(user));
   }
 }

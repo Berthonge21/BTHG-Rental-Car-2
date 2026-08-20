@@ -50,7 +50,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     } else {
       const agencyUser = await this.prisma.agencyUser.findUnique({
         where: { id: payload.sub },
-        include: { Agency: true },
       });
 
       if (!agencyUser) {
@@ -68,7 +67,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         firstname: agencyUser.firstname,
         role: agencyUser.role,
         type: 'agency',
-        agencyId: agencyUser.Agency?.id,
+        agencyId: agencyUser.agencyId ?? undefined,
       };
     }
   }
