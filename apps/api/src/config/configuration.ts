@@ -17,6 +17,20 @@ export interface AppConfig {
   };
 }
 
+const KNOWN_DEFAULT_SECRETS = new Set(['default-secret-change-me', 'default-secret']);
+
+function requireJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+
+  if (!secret || KNOWN_DEFAULT_SECRETS.has(secret)) {
+    throw new Error(
+      'JWT_SECRET is missing or set to a known default value. Set a unique, unpredictable JWT_SECRET before starting the server.',
+    );
+  }
+
+  return secret;
+}
+
 export default (): AppConfig => ({
   nodeEnv: process.env.NODE_ENV || 'development',
   port: parseInt(process.env.PORT || '4000', 10),
@@ -25,7 +39,7 @@ export default (): AppConfig => ({
     url: process.env.DATABASE_URL || '',
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'default-secret-change-me',
+    secret: requireJwtSecret(),
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
   cors: {

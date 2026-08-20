@@ -1,0 +1,80 @@
+name: CI
+
+# Runs on every PR into main and on every push to main, so a broken build,
+# lint failure, or failing test can never land on main unnoticed. Pair this
+# with a branch protection rule on main requiring the "Build, lint & test"
+# check to pass before merging.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  # apps/api's e2e suite runs against the real Supabase project (below) —
+  # not a disposable per-run database — so two CI runs executing at once
+  # would race on the same fixture rows (e.g. two branches both creating
+  # "Tenancy Test Agency A"). Group globally, not per-ref, and don't cancel
+  # in-progress runs; queue instead so every run still gets a clean result.
+  group: ci-shared-database
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-lint-test:
+    name: Build, lint & test
+    runs-on: ubuntu-latest
+
+    # apps/api's e2e suite exercises real authorization/tenancy/booking
+    # behavior — including the GiST exclusion constraint that prevents
+    # double-booking — against the actual Supabase project (DATABASE_URL /
+    # DIRECT_URL below are repo secrets), the same pgbouncer/pooler setup
+    # real traffic goes through. Every spec cleans up its own fixtures by a
+    # unique prefix in beforeAll/afterAll, so repeated runs stay clean; the
+    # concurrency group above prevents two runs from racing on that same
+    # fixture data.
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      JWT_SECRET: ci-only-secret-not-for-any-real-environment
+      JWT_EXPIRES_IN: 1h
+      JWT_REFRESH_EXPIRES_IN: 7d
+      PORT: '4000'
+      API_PREFIX: api/v1
+      CORS_ORIGINS: http://localhost:3000
+      SWAGGER_ENABLED: 'false'
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Apply database migrations
+        run: yarn workspace @rentalcar/database db:deploy
+
+      - name: Lint — API
+        run: yarn workspace @bthgrentalcar/api lint:ci
+
+      - name: Lint — Web
+        run: yarn workspace @bthgrentalcar/web lint
+
+      - name: Build all packages
+        run: yarn build
+
+      - name: Test — API (unit)
+        run: yarn workspace @bthgrentalcar/api test --passWithNoTests
+
+      - name: Test — API (e2e)
+        run: yarn workspace @bthgrentalcar/api test:e2e

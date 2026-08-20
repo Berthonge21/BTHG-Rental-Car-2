@@ -14,10 +14,16 @@ import {
   ApiBearerAuth,
   ApiBody,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto, AdminLoginDto, RegisterDto, AuthResponseDto, RefreshTokenDto, MessageResponseDto, ReactivateClientDto } from './dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser, Public } from '../../common/decorators';
+
+// Tighter than the app-wide default (see ThrottlerModule in app.module.ts)
+// — these are the credential-guessing/enumeration surface: unauthenticated,
+// public, and directly gated on a password check.
+const AUTH_THROTTLE = { default: { limit: 5, ttl: 60_000 } };
 
 @ApiTags('auth')
 @Controller('auth')
@@ -26,6 +32,7 @@ export class AuthController {
 
   @Post('login')
   @Public()
+  @Throttle(AUTH_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Client login',
@@ -44,6 +51,7 @@ export class AuthController {
 
   @Post('admin/login')
   @Public()
+  @Throttle(AUTH_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Admin login',
@@ -62,6 +70,7 @@ export class AuthController {
 
   @Post('register')
   @Public()
+  @Throttle(AUTH_THROTTLE)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Register new client',
@@ -81,6 +90,7 @@ export class AuthController {
 
   @Post('refresh')
   @Public()
+  @Throttle(AUTH_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Refresh tokens',
@@ -99,6 +109,7 @@ export class AuthController {
 
   @Post('reactivate')
   @Public()
+  @Throttle(AUTH_THROTTLE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Reactivate client account',

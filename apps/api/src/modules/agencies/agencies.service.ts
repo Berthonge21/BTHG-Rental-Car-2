@@ -16,12 +16,16 @@ export class AgenciesService {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
+          // Public endpoint — deliberately excludes AgencyUser.email. That
+          // is the admin's login credential, not agency contact info
+          // (Agency.email, above, is the public contact address); exposing
+          // it here would hand out a ready-made list of valid login
+          // identifiers to target.
           AgencyUser: {
             select: {
               id: true,
               name: true,
               firstname: true,
-              email: true,
             },
           },
         },
@@ -39,12 +43,16 @@ export class AgenciesService {
     const agency = await this.prisma.agency.findUnique({
       where: { id },
       include: {
+        // Public endpoint — deliberately excludes AgencyUser.email. That
+        // is the admin's login credential, not agency contact info
+        // (Agency.email, above, is the public contact address); exposing
+        // it here would hand out a ready-made list of valid login
+        // identifiers to target.
         AgencyUser: {
           select: {
             id: true,
             name: true,
             firstname: true,
-            email: true,
           },
         },
         _count: {
@@ -83,12 +91,16 @@ export class AgenciesService {
     return this.prisma.agency.create({
       data: dto,
       include: {
+        // Public endpoint — deliberately excludes AgencyUser.email. That
+        // is the admin's login credential, not agency contact info
+        // (Agency.email, above, is the public contact address); exposing
+        // it here would hand out a ready-made list of valid login
+        // identifiers to target.
         AgencyUser: {
           select: {
             id: true,
             name: true,
             firstname: true,
-            email: true,
           },
         },
       },
