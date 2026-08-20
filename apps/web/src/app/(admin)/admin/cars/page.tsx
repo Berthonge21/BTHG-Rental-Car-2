@@ -31,7 +31,7 @@ import {
   FiInfo,
   FiClock,
 } from 'react-icons/fi';
-import { LoadingSpinner, useMinLoading, ConfirmDialog } from '@/components/ui';
+import { LoadingSpinner, useMinLoading, ConfirmDialog, ErrorState } from '@/components/ui';
 import { useCars, useDeleteCar, useAdminRentals } from '@/hooks';
 import { useAuthStore } from '@/stores/auth.store';
 import type { Car, Rental } from '@bthgrentalcar/sdk';
@@ -532,7 +532,7 @@ export default function AdminCarsPage() {
 
   // Filter by agency for admin users
   const agencyId = user?.role === 'superAdmin' ? undefined : user?.agency?.id;
-  const { data, isLoading, isFetching } = useCars({ agencyId });
+  const { data, isLoading, isError, error, refetch, isFetching } = useCars({ agencyId });
   const showLoading = useMinLoading(isLoading);
   const deleteMutation = useDeleteCar();
 
@@ -559,6 +559,10 @@ export default function AdminCarsPage() {
   // Only show full spinner on first load — show cached data during background refetch
   if (showLoading && !data) {
     return <LoadingSpinner />;
+  }
+
+  if (isError && !data) {
+    return <ErrorState message={error instanceof Error ? error.message : undefined} onRetry={() => refetch()} />;
   }
 
   const cars = data?.data ?? [];

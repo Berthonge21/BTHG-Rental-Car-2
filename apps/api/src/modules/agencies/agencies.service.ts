@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAgencyDto, UpdateAgencyDto } from './dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
+import { rejectOnForeignKeyViolation } from '../../common/utils/prisma-errors';
+import { RentalStatus } from '@rentalcar/database';
 
 @Injectable()
 export class AgenciesService {
@@ -139,9 +141,10 @@ export class AgenciesService {
   async remove(id: number) {
     await this.findOne(id);
 
-    return this.prisma.agency.delete({
-      where: { id },
-    });
+    return rejectOnForeignKeyViolation(
+      () => this.prisma.agency.delete({ where: { id } }),
+      'Cannot delete an agency with existing cars, staff, or parkings',
+    );
   }
 
   async getCars(id: number, page = 1, limit = 10) {
@@ -168,11 +171,12 @@ export class AgenciesService {
   async getStats(id: number) {
     await this.findOne(id);
 
-    const [totalCars, rentals, revenue] = await Promise.all([
+    const [totalCars, rentalCounts, revenue] = await Promise.all([
       this.prisma.car.count({ where: { agencyId: id } }),
-      this.prisma.rental.findMany({
+      this.prisma.rental.groupBy({
+        by: ['status'],
         where: { car: { agencyId: id } },
-        select: { status: true, total: true },
+        _count: { _all: true },
       }),
       this.prisma.rental.aggregate({
         where: { car: { agencyId: id }, status: 'completed' },
@@ -180,14 +184,17 @@ export class AgenciesService {
       }),
     ]);
 
-    const pendingRentals = rentals.filter((r) => r.status === 'reserved').length;
-    const activeRentals = rentals.filter((r) => r.status === 'ongoing').length;
+    const countFor = (status: RentalStatus) =>
+      rentalCounts.find((r) => r.status === status)?._count._all ?? 0;
+    const totalRentals = rentalCounts.reduce((sum, r) => sum + r._count._all, 0);
+    const pendingRentals = countFor('reserved');
+    const activeRentals = countFor('ongoing');
 
     return {
       totalCars,
       availableCars: totalCars - activeRentals,
       rentedCars: activeRentals,
-      totalRentals: rentals.length,
+      totalRentals,
       pendingRentals,
       activeRentals,
       totalRevenue: revenue._sum.total || 0,

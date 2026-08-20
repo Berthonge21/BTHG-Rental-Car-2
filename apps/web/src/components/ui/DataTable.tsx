@@ -13,13 +13,15 @@ import {
   IconButton,
   Select,
   HStack,
+  VStack,
   Input,
   InputGroup,
   InputLeftElement,
+  Button,
   useColorModeValue,
   Skeleton,
 } from '@chakra-ui/react';
-import { FiChevronLeft, FiChevronRight, FiSearch } from 'react-icons/fi';
+import { FiChevronLeft, FiChevronRight, FiSearch, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import type { ReactNode } from 'react';
 
 export interface Column<T> {
@@ -32,6 +34,9 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
   isLoading?: boolean;
+  isError?: boolean;
+  errorMessage?: string;
+  onRetry?: () => void;
   page?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
@@ -46,6 +51,9 @@ export function DataTable<T>({
   columns,
   data,
   isLoading = false,
+  isError = false,
+  errorMessage,
+  onRetry,
   page = 1,
   totalPages = 1,
   onPageChange,
@@ -108,6 +116,25 @@ export function DataTable<T>({
                   ))}
                 </Tr>
               ))
+            ) : isError ? (
+              // A failed fetch must never look like "no data found" — a
+              // distinct state so the user knows to retry, not that the
+              // list is genuinely empty.
+              <Tr>
+                <Td colSpan={columns.length}>
+                  <VStack spacing={2} py={8}>
+                    <FiAlertTriangle color="var(--chakra-colors-red-400)" size={20} />
+                    <Text textAlign="center" color="gray.500" fontSize="sm">
+                      {errorMessage || "Couldn't load this data. Please try again."}
+                    </Text>
+                    {onRetry && (
+                      <Button size="sm" variant="outline" leftIcon={<FiRefreshCw />} onClick={onRetry}>
+                        Try again
+                      </Button>
+                    )}
+                  </VStack>
+                </Td>
+              </Tr>
             ) : data.length === 0 ? (
               // Empty state
               <Tr>

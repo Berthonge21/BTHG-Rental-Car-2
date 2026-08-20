@@ -27,7 +27,7 @@ import { api } from '@/lib/api';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FiCamera, FiX, FiAlertTriangle } from 'react-icons/fi';
-import { readFileAsDataURL, validateImageFile } from '@/lib/imageUtils';
+import { compressImage, validateImageFile } from '@/lib/imageUtils';
 import { ProgressButton } from '@/components/ui/ProgressButton';
 import { ConfirmDialog } from '@/components/ui';
 import { useAdminRentals } from '@/hooks';
@@ -98,7 +98,7 @@ export default function ProfilePage() {
     }
 
     try {
-      const dataUrl = await readFileAsDataURL(file);
+      const dataUrl = await compressImage(file);
       setValue('image', dataUrl, { shouldDirty: true });
       setImagePreview(dataUrl);
     } catch {

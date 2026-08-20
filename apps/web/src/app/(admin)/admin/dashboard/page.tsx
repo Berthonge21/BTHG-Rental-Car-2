@@ -41,19 +41,13 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { DataTable, LoadingSpinner, type Column } from '@/components/ui';
+import { DataTable, LoadingSpinner, ErrorState, type Column } from '@/components/ui';
 import { useAdminDashboard, useAdminRentals, useCars } from '@/hooks';
 import { useAuthStore } from '@/stores/auth.store';
-import type { Rental, RentalStatus } from '@bthgrentalcar/sdk';
+import type { Rental } from '@bthgrentalcar/sdk';
 import { format } from 'date-fns';
 import { useMemo } from 'react';
-
-const statusColors: Record<RentalStatus, string> = {
-  reserved: 'yellow',
-  ongoing: 'blue',
-  completed: 'green',
-  cancelled: 'red',
-};
+import { rentalStatusColors } from '@/lib/statusColors';
 
 // Chart colors
 const DONUT_COLORS = ['#C9A227', '#1BC5BD', '#0B1C2D', '#6366F1'];
@@ -64,7 +58,7 @@ const BAR_COLORS = {
 
 export default function AdminDashboardPage() {
   const { user } = useAuthStore();
-  const { data: stats, isLoading: statsLoading } = useAdminDashboard();
+  const { data: stats, isLoading: statsLoading, isError: statsError, error: statsErrorObj, refetch: refetchStats } = useAdminDashboard();
   const { data: rentalsData, isLoading: rentalsLoading } = useAdminRentals({ limit: 5 });
   const { data: carsData } = useCars();
 
@@ -115,6 +109,16 @@ export default function AdminDashboardPage() {
     return <LoadingSpinner text="Loading dashboard..." />;
   }
 
+  if (statsError) {
+    return (
+      <ErrorState
+        title="Couldn't load dashboard"
+        message={statsErrorObj instanceof Error ? statsErrorObj.message : undefined}
+        onRetry={() => refetchStats()}
+      />
+    );
+  }
+
   const rentalColumns: Column<Rental>[] = [
     {
       header: 'Client',
@@ -152,7 +156,7 @@ export default function AdminDashboardPage() {
       header: 'Status',
       accessor: (row) => (
         <Badge
-          colorScheme={statusColors[row.status]}
+          colorScheme={rentalStatusColors[row.status]}
           textTransform="capitalize"
           borderRadius="md"
           px={2}

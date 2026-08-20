@@ -10,13 +10,7 @@ import { FiArrowLeft, FiCalendar, FiClock, FiX, FiCheckCircle } from 'react-icon
 import { useRental, useCancelRental } from '@/hooks';
 import { ConfirmDialog } from '@/components/ui';
 import { format, parseISO } from 'date-fns';
-
-const STATUS_COLOR: Record<string, string> = {
-  reserved: 'yellow',
-  ongoing: 'blue',
-  completed: 'green',
-  cancelled: 'red',
-};
+import { rentalStatusColors } from '@/lib/statusColors';
 
 export default function RentalDetailPage() {
   const params = useParams();
@@ -71,7 +65,7 @@ export default function RentalDetailPage() {
       <Flex justify="space-between" align="center" mb={6}>
         <Heading size="lg">Rental #{rental.id}</Heading>
         <Badge
-          colorScheme={STATUS_COLOR[rental.status] ?? 'gray'}
+          colorScheme={rentalStatusColors[rental.status] ?? 'gray'}
           borderRadius="full"
           px={4}
           py={1}

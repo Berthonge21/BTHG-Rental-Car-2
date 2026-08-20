@@ -22,7 +22,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { api } from '@/lib/api';
 import { useState, useRef, useEffect } from 'react';
 import { FiCamera, FiX } from 'react-icons/fi';
-import { readFileAsDataURL, validateImageFile } from '@/lib/imageUtils';
+import { compressImage, validateImageFile } from '@/lib/imageUtils';
 import { ProgressButton } from '@/components/ui/ProgressButton';
 
 interface ProfileFormData {
@@ -80,7 +80,7 @@ export default function ProfilePage() {
     }
 
     try {
-      const dataUrl = await readFileAsDataURL(file);
+      const dataUrl = await compressImage(file);
       setValue('image', dataUrl, { shouldDirty: true });
       setImagePreview(dataUrl);
     } catch {

@@ -32,7 +32,7 @@ import {
   parseCarImages,
   serializeCarImages,
   validateImageFile,
-  readFileAsDataURL,
+  compressImage,
   MAX_IMAGES,
 } from '@/lib/imageUtils';
 
@@ -184,7 +184,7 @@ export function CarForm({
         }
 
         try {
-          const dataURL = await readFileAsDataURL(file);
+          const dataURL = await compressImage(file);
           results.push(dataURL);
         } catch {
           toast({

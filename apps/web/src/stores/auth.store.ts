@@ -77,8 +77,13 @@ export const useAuthStore = create<AuthState>()(
       register: async (data) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.auth.register(data);
-          await api.setTokens(response.accessToken, response.refreshToken);
+          // POST /auth/register only creates the account — it issues no
+          // tokens. Log in explicitly with the same credentials right
+          // after, rather than assuming a session out of the register
+          // response.
+          await api.auth.register(data);
+          const loginResponse = await api.auth.login({ email: data.email, password: data.password });
+          await api.setTokens(loginResponse.accessToken, loginResponse.refreshToken);
 
           const user = await api.auth.me();
           set({ user, isAuthenticated: true, isLoading: false });

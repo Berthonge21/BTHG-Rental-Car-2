@@ -8,7 +8,8 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateRentalDto, UpdateRentalDto, RentalQueryDto } from './dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
-import { Prisma } from '@rentalcar/database';
+import { assertValidRentalTransition } from '../../common/utils/rental-status';
+import { Prisma, RentalStatus } from '@rentalcar/database';
 
 @Injectable()
 export class RentalsService {
@@ -189,8 +190,15 @@ export class RentalsService {
   async update(id: number, userId: number, dto: UpdateRentalDto) {
     const rental = await this.findOne(id, userId);
 
-    if (rental.status !== 'reserved' && dto.status) {
-      throw new BadRequestException('Only reserved rentals can be modified by users');
+    if (dto.status) {
+      // A client-initiated status change is only ever a cancellation —
+      // marking a rental 'ongoing' or 'completed' is an operational
+      // decision made by the agency/system, not something the person who
+      // booked it gets to declare about their own rental.
+      if (dto.status !== 'cancelled') {
+        throw new ForbiddenException('Clients may only cancel their own rentals');
+      }
+      assertValidRentalTransition(rental.status, dto.status);
     }
 
     return this.prisma.rental.update({
@@ -214,13 +222,7 @@ export class RentalsService {
   async cancel(id: number, userId: number) {
     const rental = await this.findOne(id, userId);
 
-    if (rental.status === 'completed' || rental.status === 'cancelled') {
-      throw new BadRequestException('Cannot cancel a completed or already cancelled rental');
-    }
-
-    if (rental.status === 'ongoing') {
-      throw new BadRequestException('Cannot cancel an ongoing rental');
-    }
+    assertValidRentalTransition(rental.status, 'cancelled');
 
     return this.prisma.rental.update({
       where: { id },
@@ -323,7 +325,7 @@ export class RentalsService {
     };
   }
 
-  async updateStatus(id: number, status: string, agencyId?: number) {
+  async updateStatus(id: number, status: RentalStatus, agencyId?: number) {
     const rental = await this.prisma.rental.findUnique({
       where: { id },
       include: { car: true },
@@ -337,9 +339,11 @@ export class RentalsService {
       throw new ForbiddenException('You can only update rentals for your own agency');
     }
 
+    assertValidRentalTransition(rental.status, status);
+
     return this.prisma.rental.update({
       where: { id },
-      data: { status: status as any },
+      data: { status },
       include: {
         car: {
           select: {

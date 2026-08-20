@@ -35,7 +35,8 @@ import { LoadingSpinner, StatCard, DataTable, type Column } from '@/components/u
 import { useAgency, useAgencyStats, useAgencyCars, useUpdateAgency, useSuperAdminUsers } from '@/hooks';
 import { ProgressButton } from '@/components/ui/ProgressButton';
 import { Status } from '@bthgrentalcar/sdk';
-import type { Car, AdminUser, UserRole } from '@bthgrentalcar/sdk';
+import type { Car, AdminUser } from '@bthgrentalcar/sdk';
+import { activationStatusColors, roleColors } from '@/lib/statusColors';
 
 const agencySchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
@@ -46,16 +47,6 @@ const agencySchema = z.object({
 });
 
 type AgencyFormData = z.infer<typeof agencySchema>;
-
-const statusColors: Record<Status, string> = {
-  activate: 'green',
-  deactivate: 'red',
-};
-
-const roleColors: Record<UserRole, string> = {
-  admin: 'blue',
-  superAdmin: 'purple',
-};
 
 export default function AgencyDetailsPage() {
   const router = useRouter();
@@ -201,7 +192,7 @@ export default function AgencyDetailsPage() {
             Back
           </Button>
           <Heading size="lg">{agency.name}</Heading>
-          <Badge colorScheme={statusColors[agency.status]} textTransform="capitalize" ml={2}>
+          <Badge colorScheme={activationStatusColors[agency.status]} textTransform="capitalize" ml={2}>
             {agency.status}
           </Badge>
         </HStack>
@@ -318,7 +309,7 @@ export default function AgencyDetailsPage() {
                   </Box>
                   <Box>
                     <Text color="gray.500" fontSize="sm">Status</Text>
-                    <Badge colorScheme={statusColors[agency.status]} textTransform="capitalize">
+                    <Badge colorScheme={activationStatusColors[agency.status]} textTransform="capitalize">
                       {agency.status}
                     </Badge>
                   </Box>

@@ -21,12 +21,8 @@ import { FiPlus, FiEdit2, FiLink, FiUserCheck, FiUserX } from 'react-icons/fi';
 import { DataTable, type Column, ConfirmDialog } from '@/components/ui';
 import { useSuperAdminUsers, useUpdateUserStatus } from '@/hooks';
 import { Status } from '@bthgrentalcar/sdk';
-import type { AdminUser, UserRole } from '@bthgrentalcar/sdk';
-
-const roleColors: Record<UserRole, string> = {
-  admin: 'blue',
-  superAdmin: 'purple',
-};
+import type { AdminUser } from '@bthgrentalcar/sdk';
+import { roleColors } from '@/lib/statusColors';
 
 export default function SuperAdminAdminsPage() {
   const router = useRouter();
@@ -36,7 +32,7 @@ export default function SuperAdminAdminsPage() {
   const statusToggleDialog = useDisclosure();
   const [selectedAdmin, setSelectedAdmin] = useState<AdminUser | null>(null);
 
-  const { data, isLoading } = useSuperAdminUsers({ page, limit: 10, search: search || undefined });
+  const { data, isLoading, isError, error, refetch } = useSuperAdminUsers({ page, limit: 10, search: search || undefined });
   const updateStatusMutation = useUpdateUserStatus();
 
   const filteredData = (data?.data || []).filter((admin) => {
@@ -217,6 +213,9 @@ export default function SuperAdminAdminsPage() {
           columns={columns}
           data={filteredData}
           isLoading={isLoading}
+          isError={isError}
+          errorMessage={error instanceof Error ? error.message : undefined}
+          onRetry={() => refetch()}
           page={page}
           totalPages={data?.meta.totalPages || 1}
           onPageChange={setPage}
