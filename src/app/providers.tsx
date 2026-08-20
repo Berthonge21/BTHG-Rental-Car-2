@@ -1,7 +1,7 @@
 'use client';
 
 import { CacheProvider } from '@chakra-ui/next-js';
-import { ChakraProvider, ColorModeScript } from '@chakra-ui/react';
+import { ChakraProvider, ColorModeScript, Center, Spinner } from '@chakra-ui/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect, type ReactNode } from 'react';
 import { theme } from '@/theme';
@@ -9,14 +9,19 @@ import { useAuthStore } from '@/stores/auth.store';
 
 function AuthInitializer({ children }: { children: ReactNode }) {
   const fetchUser = useAuthStore((state) => state.fetchUser);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const isInitializing = useAuthStore((state) => state.isInitializing);
 
   useEffect(() => {
-    fetchUser().finally(() => setIsInitialized(true));
-  }, [fetchUser]);
+    fetchUser();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  if (!isInitialized) {
-    return null;
+  if (isInitializing) {
+    return (
+      <Center h="100vh">
+        <Spinner size="xl" color="brand.400" thickness="4px" />
+      </Center>
+    );
   }
 
   return <>{children}</>;

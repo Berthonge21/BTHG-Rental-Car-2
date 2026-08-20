@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Box, useColorModeValue } from '@chakra-ui/react';
 import { useAuthStore } from '@/stores/auth.store';
@@ -10,16 +10,11 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isAuthenticated, isLoading } = useAuthStore();
-  const [mounted, setMounted] = useState(false);
 
   const bgColor = useColorModeValue('surface.light', 'surface.dark');
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted || isLoading) return;
+    if (isLoading) return;
 
     if (!isAuthenticated) {
       router.push('/admin/login');
@@ -29,13 +24,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (user?.role !== 'admin' && user?.role !== 'superAdmin') {
       router.push('/login');
     }
-  }, [isAuthenticated, user, isLoading, mounted, router]);
+  }, [isAuthenticated, user, isLoading, router]);
 
-  if (!mounted || isLoading) {
-    return <LoadingSpinner fullPage />;
-  }
-
-  if (!isAuthenticated || (user?.role !== 'admin' && user?.role !== 'superAdmin')) {
+  if (isLoading || !isAuthenticated || (user?.role !== 'admin' && user?.role !== 'superAdmin')) {
     return <LoadingSpinner fullPage />;
   }
 
