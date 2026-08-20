@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger as PinoLogger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
@@ -26,9 +27,12 @@ async function bootstrap(): Promise<void> {
   // Display banner
   console.log('\x1b[36m%s\x1b[0m', banner);
 
+  // bufferLogs holds onto any log calls made before useLogger() runs below,
+  // instead of dropping them or falling back to the default console logger.
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'log'],
+    bufferLogs: true,
   });
+  app.useLogger(app.get(PinoLogger));
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('port') || 4000;

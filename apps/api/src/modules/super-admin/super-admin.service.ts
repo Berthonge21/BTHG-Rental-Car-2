@@ -11,12 +11,14 @@ import { RentalsService } from '../rentals/rentals.service';
 import { RentalQueryDto } from '../rentals/dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
 import { RentalStatus } from '@rentalcar/database';
+import { AuditLogService } from '../../common/audit-log/audit-log.service';
 
 @Injectable()
 export class SuperAdminService {
   constructor(
     private prisma: PrismaService,
     private rentalsService: RentalsService,
+    private auditLog: AuditLogService,
   ) {}
 
   async getGlobalDashboard() {
@@ -174,7 +176,11 @@ export class SuperAdminService {
    * agency creation — an agency can have many staff admins via this
    * endpoint, only one of which is ever its formal Responsible.
    */
-  async assignAdminToAgency(userId: number, dto: AssignAgencyDto) {
+  async assignAdminToAgency(
+    userId: number,
+    dto: AssignAgencyDto,
+    actor: { id: number; email: string },
+  ) {
     const user = await this.prisma.agencyUser.findUnique({
       where: { id: userId },
     });
@@ -212,6 +218,15 @@ export class SuperAdminService {
       },
     });
 
+    await this.auditLog.record({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'admin.agency_assigned',
+      targetType: 'AgencyUser',
+      targetId: userId,
+      metadata: { previousAgencyId: user.agencyId, newAgencyId: dto.agencyId },
+    });
+
     return {
       id: updated.id,
       email: updated.email,
@@ -228,7 +243,11 @@ export class SuperAdminService {
     };
   }
 
-  async updateAdminStatus(userId: number, dto: UpdateAdminStatusDto) {
+  async updateAdminStatus(
+    userId: number,
+    dto: UpdateAdminStatusDto,
+    actor: { id: number; email: string },
+  ) {
     const user = await this.prisma.agencyUser.findUnique({
       where: { id: userId },
       // ResponsibleOf, not Agency: whether deactivating this admin cascades
@@ -290,6 +309,15 @@ export class SuperAdminService {
       },
     });
 
+    await this.auditLog.record({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'admin.status_changed',
+      targetType: 'AgencyUser',
+      targetId: userId,
+      metadata: { previousStatus: user.status, newStatus: dto.status },
+    });
+
     // Cascade to the agency's own status only when this admin is its
     // formal responsible contact — see the comment above.
     if (updatedUser.ResponsibleOf) {
@@ -299,6 +327,15 @@ export class SuperAdminService {
           status: dto.status,
           updatedAt: new Date(),
         },
+      });
+
+      await this.auditLog.record({
+        actorId: actor.id,
+        actorEmail: actor.email,
+        action: 'agency.status_changed',
+        targetType: 'Agency',
+        targetId: updatedUser.ResponsibleOf.id,
+        metadata: { newStatus: dto.status, cause: 'responsible_admin_status_change', causedBy: userId },
       });
     }
 

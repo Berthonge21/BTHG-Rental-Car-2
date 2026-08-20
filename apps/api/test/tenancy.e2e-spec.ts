@@ -182,6 +182,9 @@ describe('Tenancy isolation (e2e)', () => {
   });
 
   afterAll(async () => {
+    // AuditLog.actorEmail is deliberately not a foreign key (entries must
+    // survive actor deletion), so it needs its own explicit cleanup here.
+    await prisma.auditLog.deleteMany({ where: { actorEmail: { contains: '@tenancy-test.local' } } });
     await prisma.car.deleteMany({ where: { registration: { startsWith: 'TEST-' } } });
     // Agency.responsibleId references AgencyUser, so agencies must go first.
     await prisma.agency.deleteMany({ where: { name: { startsWith: 'Tenancy Test' } } });

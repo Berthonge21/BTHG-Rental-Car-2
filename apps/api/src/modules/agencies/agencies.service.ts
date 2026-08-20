@@ -4,10 +4,14 @@ import { CreateAgencyDto, UpdateAgencyDto } from './dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
 import { rejectOnForeignKeyViolation } from '../../common/utils/prisma-errors';
 import { RentalStatus } from '@rentalcar/database';
+import { AuditLogService } from '../../common/audit-log/audit-log.service';
 
 @Injectable()
 export class AgenciesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditLog: AuditLogService,
+  ) {}
 
   async findAll(page = 1, limit = 10) {
     const skip = (page - 1) * limit;
@@ -109,8 +113,8 @@ export class AgenciesService {
     });
   }
 
-  async update(id: number, dto: UpdateAgencyDto) {
-    await this.findOne(id);
+  async update(id: number, dto: UpdateAgencyDto, actor: { id: number; email: string }) {
+    const existing = await this.findOne(id);
 
     if (dto.name) {
       const existingByName = await this.prisma.agency.findFirst({
@@ -132,10 +136,23 @@ export class AgenciesService {
       }
     }
 
-    return this.prisma.agency.update({
+    const updated = await this.prisma.agency.update({
       where: { id },
       data: dto,
     });
+
+    if (dto.status && dto.status !== existing.status) {
+      await this.auditLog.record({
+        actorId: actor.id,
+        actorEmail: actor.email,
+        action: 'agency.status_changed',
+        targetType: 'Agency',
+        targetId: id,
+        metadata: { previousStatus: existing.status, newStatus: dto.status },
+      });
+    }
+
+    return updated;
   }
 
   async remove(id: number) {

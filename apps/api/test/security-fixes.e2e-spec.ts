@@ -4,6 +4,7 @@ import request from 'supertest';
 import * as bcrypt from 'bcrypt';
 import { PrismaClient } from '@rentalcar/database';
 import { AppModule } from '../src/app.module';
+import { RentalLifecycleService } from '../src/modules/rentals/rental-lifecycle.service';
 
 /**
  * Regression suite for the P0/P1 fixes made in this pass of the platform
@@ -190,6 +191,13 @@ describe('Security fixes (e2e)', () => {
   });
 
   afterAll(async () => {
+    // AuditLog.actorEmail is deliberately not a foreign key (entries must
+    // survive actor deletion), so it needs its own explicit cleanup here.
+    await prisma.auditLog.deleteMany({
+      where: {
+        OR: [{ actorEmail: { contains: '@secfix-test.local' } }, { actorEmail: clientEmail }],
+      },
+    });
     await prisma.rental.deleteMany({ where: { client: { email: clientEmail } } });
     await prisma.client.deleteMany({ where: { email: clientEmail } });
     await prisma.car.deleteMany({ where: { registration: { startsWith: 'SECFIX-' } } });
@@ -463,6 +471,122 @@ describe('Security fixes (e2e)', () => {
         .set('Authorization', `Bearer ${clientToken}`)
         .send({ status: 'cancelled' });
       expect(res.status).toBe(200);
+    });
+  });
+
+  describe('Rental lifecycle — auto-completing past-due rentals', () => {
+    it('moves an ongoing rental past its endDate to completed', async () => {
+      const past = new Date();
+      past.setDate(past.getDate() - 10);
+      const pastEnd = new Date();
+      pastEnd.setDate(pastEnd.getDate() - 1);
+
+      const client = await prisma.client.findUniqueOrThrow({ where: { email: clientEmail } });
+      const rental = await prisma.rental.create({
+        data: {
+          clientId: client.id,
+          carId: carA.id,
+          startDate: past,
+          endDate: pastEnd,
+          startTime: past,
+          endTime: pastEnd,
+          total: carA.price,
+          status: 'ongoing',
+        },
+      });
+
+      const lifecycle = app.get(RentalLifecycleService);
+      await lifecycle.completePastDueRentals();
+
+      const updated = await prisma.rental.findUnique({ where: { id: rental.id } });
+      expect(updated?.status).toBe('completed');
+    });
+
+    it('does not touch an ongoing rental that has not ended yet', async () => {
+      const start = new Date();
+      start.setDate(start.getDate() - 1);
+      const futureEnd = new Date();
+      futureEnd.setDate(futureEnd.getDate() + 5);
+
+      const client = await prisma.client.findUniqueOrThrow({ where: { email: clientEmail } });
+      const rental = await prisma.rental.create({
+        data: {
+          clientId: client.id,
+          carId: carA.id,
+          startDate: start,
+          endDate: futureEnd,
+          startTime: start,
+          endTime: futureEnd,
+          total: carA.price,
+          status: 'ongoing',
+        },
+      });
+
+      const lifecycle = app.get(RentalLifecycleService);
+      await lifecycle.completePastDueRentals();
+
+      const unchanged = await prisma.rental.findUnique({ where: { id: rental.id } });
+      expect(unchanged?.status).toBe('ongoing');
+
+      await prisma.rental.delete({ where: { id: rental.id } });
+    });
+  });
+
+  describe('Audit log — privileged actions are attributed to an actor', () => {
+    const futureDate = (daysFromNow: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + daysFromNow);
+      return d.toISOString().slice(0, 10);
+    };
+
+    it('records who cancelled a rental', async () => {
+      const start = futureDate(300);
+      const end = futureDate(303);
+      const created = await request(app.getHttpServer())
+        .post('/rentals')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send({
+          carId: carA.id,
+          startDate: start,
+          endDate: end,
+          startTime: `${start}T10:00:00Z`,
+          endTime: `${end}T10:00:00Z`,
+        });
+      expect(created.status).toBe(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/rentals/${created.body.id}`)
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send({ status: 'cancelled' });
+      expect(res.status).toBe(200);
+
+      const entry = await prisma.auditLog.findFirst({
+        where: { action: 'rental.cancelled', targetType: 'Rental', targetId: created.body.id },
+      });
+      expect(entry).not.toBeNull();
+      expect(entry?.actorEmail).toBe(clientEmail);
+    });
+
+    it("records who changed an agency's status", async () => {
+      const res = await request(app.getHttpServer())
+        .put(`/agencies/${agencyA.id}`)
+        .set('Authorization', `Bearer ${tokenSuper}`)
+        .send({ status: 'deactivate' });
+      expect(res.status).toBe(200);
+
+      const entry = await prisma.auditLog.findFirst({
+        where: { action: 'agency.status_changed', targetType: 'Agency', targetId: agencyA.id },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(entry).not.toBeNull();
+      expect(entry?.actorEmail).toBe(superAdmin.email);
+      expect((entry?.metadata as Record<string, unknown> | null)?.newStatus).toBe('deactivate');
+
+      // restore for any later tests / re-runs
+      await request(app.getHttpServer())
+        .put(`/agencies/${agencyA.id}`)
+        .set('Authorization', `Bearer ${tokenSuper}`)
+        .send({ status: 'activate' });
     });
   });
 });

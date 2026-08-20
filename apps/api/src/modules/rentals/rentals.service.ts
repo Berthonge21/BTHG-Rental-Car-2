@@ -9,11 +9,15 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateRentalDto, UpdateRentalDto, RentalQueryDto } from './dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
 import { assertValidRentalTransition } from '../../common/utils/rental-status';
+import { AuditLogService } from '../../common/audit-log/audit-log.service';
 import { Prisma, RentalStatus } from '@rentalcar/database';
 
 @Injectable()
 export class RentalsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditLog: AuditLogService,
+  ) {}
 
   async findAllForUser(userId: number, query: RentalQueryDto) {
     const { page = 1, limit = 10, status, startDate, endDate } = query;
@@ -187,7 +191,7 @@ export class RentalsService {
     }
   }
 
-  async update(id: number, userId: number, dto: UpdateRentalDto) {
+  async update(id: number, userId: number, dto: UpdateRentalDto, actorEmail?: string) {
     const rental = await this.findOne(id, userId);
 
     if (dto.status) {
@@ -199,6 +203,17 @@ export class RentalsService {
         throw new ForbiddenException('Clients may only cancel their own rentals');
       }
       assertValidRentalTransition(rental.status, dto.status);
+
+      if (actorEmail) {
+        await this.auditLog.record({
+          actorId: userId,
+          actorEmail,
+          action: 'rental.cancelled',
+          targetType: 'Rental',
+          targetId: id,
+          metadata: { previousStatus: rental.status, via: 'update' },
+        });
+      }
     }
 
     return this.prisma.rental.update({
@@ -219,15 +234,26 @@ export class RentalsService {
     });
   }
 
-  async cancel(id: number, userId: number) {
+  async cancel(id: number, userId: number, actorEmail: string) {
     const rental = await this.findOne(id, userId);
 
     assertValidRentalTransition(rental.status, 'cancelled');
 
-    return this.prisma.rental.update({
+    const updated = await this.prisma.rental.update({
       where: { id },
       data: { status: 'cancelled' },
     });
+
+    await this.auditLog.record({
+      actorId: userId,
+      actorEmail,
+      action: 'rental.cancelled',
+      targetType: 'Rental',
+      targetId: id,
+      metadata: { previousStatus: rental.status },
+    });
+
+    return updated;
   }
 
   async findAllForAgency(agencyId: number, query: RentalQueryDto) {
@@ -325,7 +351,12 @@ export class RentalsService {
     };
   }
 
-  async updateStatus(id: number, status: RentalStatus, agencyId?: number) {
+  async updateStatus(
+    id: number,
+    status: RentalStatus,
+    actor: { id: number; email: string },
+    agencyId?: number,
+  ) {
     const rental = await this.prisma.rental.findUnique({
       where: { id },
       include: { car: true },
@@ -341,7 +372,7 @@ export class RentalsService {
 
     assertValidRentalTransition(rental.status, status);
 
-    return this.prisma.rental.update({
+    const updated = await this.prisma.rental.update({
       where: { id },
       data: { status },
       include: {
@@ -362,5 +393,16 @@ export class RentalsService {
         },
       },
     });
+
+    await this.auditLog.record({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'rental.status_changed',
+      targetType: 'Rental',
+      targetId: id,
+      metadata: { previousStatus: rental.status, newStatus: status },
+    });
+
+    return updated;
   }
 }
