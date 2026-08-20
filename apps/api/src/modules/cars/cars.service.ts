@@ -140,7 +140,7 @@ export class CarsService {
   }
 
   async checkAvailability(id: number, startDate: string, endDate: string) {
-    const car = await this.findOne(id);
+    await this.findOne(id);
 
     const start = new Date(startDate);
     const end = new Date(endDate);

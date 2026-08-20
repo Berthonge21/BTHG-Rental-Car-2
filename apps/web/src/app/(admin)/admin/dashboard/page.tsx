@@ -333,7 +333,7 @@ export default function AdminDashboardPage() {
                 <Flex h="100%" align="center" justify="center" direction="column" gap={2}>
                   <Icon as={FiCalendar} boxSize={6} color={textMuted} />
                   <Text fontSize="sm" color={textMuted} textAlign="center">
-                    Revenue history isn't tracked yet — showing this month's total only.
+                    Revenue history isn&apos;t tracked yet — showing this month&apos;s total only.
                   </Text>
                 </Flex>
               )}
