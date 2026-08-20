@@ -1,0 +1,87 @@
+name: CI
+
+# Runs on every PR into main and on every push to main, so a broken build,
+# lint failure, or failing test can never land on main unnoticed. Pair this
+# with a branch protection rule on main requiring the "Build, lint & test"
+# check to pass before merging.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-lint-test:
+    name: Build, lint & test
+    runs-on: ubuntu-latest
+
+    # apps/api's e2e suite exercises real authorization/tenancy/booking
+    # behavior against a real Postgres database (including the GiST
+    # exclusion constraint that prevents double-booking) — a disposable
+    # service container, never a shared or production database.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      JWT_SECRET: ci-only-secret-not-for-any-real-environment
+      JWT_EXPIRES_IN: 1h
+      JWT_REFRESH_EXPIRES_IN: 7d
+      NODE_ENV: development
+      PORT: '4000'
+      API_PREFIX: api/v1
+      CORS_ORIGINS: http://localhost:3000
+      SWAGGER_ENABLED: 'false'
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Apply database migrations
+        run: yarn workspace @rentalcar/database db:deploy
+
+      - name: Lint — API
+        run: yarn workspace @bthgrentalcar/api lint:ci
+
+      - name: Lint — Web
+        run: yarn workspace @bthgrentalcar/web lint
+
+      - name: Build all packages
+        run: yarn build
+
+      - name: Test — API (unit)
+        run: yarn workspace @bthgrentalcar/api test --passWithNoTests
+
+      - name: Test — API (e2e)
+        run: yarn workspace @bthgrentalcar/api test:e2e
