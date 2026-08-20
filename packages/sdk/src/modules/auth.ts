@@ -5,6 +5,7 @@ import type {
   RegisterDto,
   RefreshTokenDto,
   AuthResponse,
+  RegisterResponse,
   CurrentUser,
 } from '../types';
 import type { MessageResponse } from '../types/common';
@@ -29,10 +30,11 @@ export class AuthModule {
   }
 
   /**
-   * Register a new client
+   * Register a new client. Does not log the caller in — the account is
+   * created but no tokens are issued; call login() separately afterward.
    */
-  async register(data: RegisterDto): Promise<AuthResponse> {
-    const response = await this.http.post<AuthResponse>('/auth/register', data);
+  async register(data: RegisterDto): Promise<RegisterResponse> {
+    const response = await this.http.post<RegisterResponse>('/auth/register', data);
     return response.data;
   }
 

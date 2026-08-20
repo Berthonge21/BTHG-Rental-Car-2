@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCarDto, UpdateCarDto, CarQueryDto } from './dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
+import { rejectOnForeignKeyViolation } from '../../common/utils/prisma-errors';
 import { Prisma } from '@rentalcar/database';
 
 @Injectable()
@@ -134,9 +135,10 @@ export class CarsService {
       throw new ForbiddenException('You can only delete cars from your own agency');
     }
 
-    return this.prisma.car.delete({
-      where: { id },
-    });
+    return rejectOnForeignKeyViolation(
+      () => this.prisma.car.delete({ where: { id } }),
+      'Cannot delete a car with existing rental history',
+    );
   }
 
   async checkAvailability(id: number, startDate: string, endDate: string) {

@@ -10,6 +10,7 @@ import { CreateAdminUserDto, AssignAgencyDto, UpdateAdminStatusDto } from './dto
 import { RentalsService } from '../rentals/rentals.service';
 import { RentalQueryDto } from '../rentals/dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
+import { RentalStatus } from '@rentalcar/database';
 
 @Injectable()
 export class SuperAdminService {
@@ -28,7 +29,7 @@ export class SuperAdminService {
       totalCars,
       totalAdmins,
       totalClients,
-      rentals,
+      rentalCounts,
       totalRevenue,
       monthlyRevenue,
     ] = await Promise.all([
@@ -37,7 +38,10 @@ export class SuperAdminService {
       this.prisma.car.count(),
       this.prisma.agencyUser.count(),
       this.prisma.client.count(),
-      this.prisma.rental.findMany({ select: { status: true } }),
+      this.prisma.rental.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+      }),
       this.prisma.rental.aggregate({
         where: { status: 'completed' },
         _sum: { total: true },
@@ -51,15 +55,19 @@ export class SuperAdminService {
       }),
     ]);
 
+    const countFor = (status: RentalStatus) =>
+      rentalCounts.find((r) => r.status === status)?._count._all ?? 0;
+    const totalRentals = rentalCounts.reduce((sum, r) => sum + r._count._all, 0);
+
     return {
       totalAgencies,
       activeAgencies,
       totalCars,
       totalAdmins,
       totalClients,
-      totalRentals: rentals.length,
-      pendingRentals: rentals.filter((r) => r.status === 'reserved').length,
-      activeRentals: rentals.filter((r) => r.status === 'ongoing').length,
+      totalRentals,
+      pendingRentals: countFor('reserved'),
+      activeRentals: countFor('ongoing'),
       totalRevenue: totalRevenue._sum.total || 0,
       monthlyRevenue: monthlyRevenue._sum.total || 0,
     };
@@ -309,6 +317,48 @@ export class SuperAdminService {
     };
   }
 
+  async getAdminUser(id: number) {
+    const user = await this.prisma.agencyUser.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        firstname: true,
+        role: true,
+        status: true,
+        deactivatedAt: true,
+        image: true,
+        createdAt: true,
+        Agency: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`Admin user with ID ${id} not found`);
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      firstname: user.firstname,
+      role: user.role,
+      status: user.status,
+      deactivatedAt: user.deactivatedAt,
+      image: user.image,
+      createdAt: user.createdAt,
+      agencyId: user.Agency?.id || null,
+      agencyName: user.Agency?.name || null,
+      agency: user.Agency || null,
+    };
+  }
+
   async getAdminUsers(page = 1, limit = 10) {
     const skip = (page - 1) * limit;
 
@@ -324,6 +374,7 @@ export class SuperAdminService {
           firstname: true,
           role: true,
           status: true,
+          deactivatedAt: true,
           image: true,
           createdAt: true,
           Agency: {
@@ -345,6 +396,7 @@ export class SuperAdminService {
       firstname: user.firstname,
       role: user.role,
       status: user.status,
+      deactivatedAt: user.deactivatedAt,
       image: user.image,
       createdAt: user.createdAt,
       agencyId: user.Agency?.id || null,

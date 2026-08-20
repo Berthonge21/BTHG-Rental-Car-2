@@ -14,6 +14,7 @@ export const superAdminKeys = {
   agencies: (query?: AgencyQueryDto) => ['super-admin', 'agencies', query] as const,
   rentals: (query?: RentalQueryDto) => ['super-admin', 'rentals', query] as const,
   users: (query?: AdminUserQueryDto) => ['super-admin', 'users', query] as const,
+  user: (id: number) => ['super-admin', 'users', id] as const,
 };
 
 export function useSuperAdminDashboard() {
@@ -41,6 +42,14 @@ export function useSuperAdminUsers(query?: AdminUserQueryDto) {
   return useQuery({
     queryKey: superAdminKeys.users(query),
     queryFn: () => api.superAdmin.getUsers(query),
+  });
+}
+
+export function useSuperAdminUser(id: number) {
+  return useQuery({
+    queryKey: superAdminKeys.user(id),
+    queryFn: () => api.superAdmin.getUser(id),
+    enabled: !Number.isNaN(id),
   });
 }
 

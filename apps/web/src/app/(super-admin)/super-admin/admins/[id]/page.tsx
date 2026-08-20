@@ -29,7 +29,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { LoadingSpinner, ConfirmDialog } from '@/components/ui';
-import { useSuperAdminUsers, useSuperAdminAgencies, useAssignAgency, useUpdateUserStatus } from '@/hooks';
+import { useSuperAdminUser, useSuperAdminAgencies, useAssignAgency, useUpdateUserStatus } from '@/hooks';
 import { ProgressButton } from '@/components/ui/ProgressButton';
 import { Status } from '@bthgrentalcar/sdk';
 import type { UserRole } from '@bthgrentalcar/sdk';
@@ -56,7 +56,7 @@ export default function AdminDetailsPage() {
   const [isAssigning, setIsAssigning] = useState(showAssignModal);
   const statusToggleDialog = useDisclosure();
 
-  const { data: usersData, isLoading: usersLoading } = useSuperAdminUsers({ limit: 100 });
+  const { data: admin, isLoading: usersLoading } = useSuperAdminUser(adminId);
   const { data: agenciesData, isLoading: agenciesLoading } = useSuperAdminAgencies({ limit: 100 });
   const assignMutation = useAssignAgency();
   const updateStatusMutation = useUpdateUserStatus();
@@ -65,9 +65,6 @@ export default function AdminDetailsPage() {
   const textMuted = useColorModeValue('gray.500', 'gray.400');
   const dangerBg = useColorModeValue('red.50', 'rgba(254, 178, 178, 0.06)');
   const dangerBorder = useColorModeValue('red.200', 'red.800');
-
-  // Find the admin user
-  const admin = usersData?.data?.find((u) => u.id === adminId);
 
   // Filter agencies for assignment (only active ones)
   const availableAgencies = agenciesData?.data?.filter(

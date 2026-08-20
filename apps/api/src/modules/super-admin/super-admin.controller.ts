@@ -114,6 +114,22 @@ export class SuperAdminController {
     );
   }
 
+  @Get('users/:id')
+  @ApiOperation({
+    summary: 'Get a single admin user',
+    description: 'Get one admin user by id (super-admin only)',
+  })
+  @ApiParam({ name: 'id', type: Number, description: 'Admin user ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Admin user',
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Admin user not found' })
+  @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Requires super-admin role' })
+  async getAdminUser(@Param('id', ParseIntPipe) id: number) {
+    return this.superAdminService.getAdminUser(id);
+  }
+
   @Patch('users/:id/status')
   @ApiOperation({
     summary: 'Update admin user status',

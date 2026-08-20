@@ -55,6 +55,14 @@ export class SuperAdminModule {
   }
 
   /**
+   * Get a single admin user by id
+   */
+  async getUser(userId: number): Promise<AdminUser> {
+    const response = await this.http.get<AdminUser>(`/super-admin/users/${userId}`);
+    return response.data;
+  }
+
+  /**
    * Create a new admin user
    */
   async createUser(data: CreateAdminUserDto): Promise<AdminUser> {

@@ -376,4 +376,93 @@ describe('Security fixes (e2e)', () => {
       expect(found.AgencyUser?.email).toBeUndefined();
     });
   });
+
+  describe('Rental status transitions are validated server-side', () => {
+    const futureDate = (daysFromNow: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + daysFromNow);
+      return d.toISOString().slice(0, 10);
+    };
+
+    // Each call must book a non-overlapping window — otherwise it would
+    // legitimately hit the same booking-conflict check tested elsewhere.
+    let dayOffset = 200;
+    const createReservedRental = async () => {
+      const start = futureDate(dayOffset);
+      const end = futureDate(dayOffset + 3);
+      dayOffset += 4;
+      const res = await request(app.getHttpServer())
+        .post('/rentals')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send({
+          carId: carA.id,
+          startDate: start,
+          endDate: end,
+          startTime: `${start}T10:00:00Z`,
+          endTime: `${end}T10:00:00Z`,
+        });
+      expect(res.status).toBe(201);
+      return res.body.id as number;
+    };
+
+    it('admin PATCH rejects an invalid transition (reserved -> completed, skipping ongoing)', async () => {
+      const rentalId = await createReservedRental();
+      const res = await request(app.getHttpServer())
+        .patch(`/admin/rentals/${rentalId}`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ status: 'completed' });
+      expect(res.status).toBe(400);
+    });
+
+    it('admin PATCH allows the real graph: reserved -> ongoing -> completed', async () => {
+      const rentalId = await createReservedRental();
+
+      const toOngoing = await request(app.getHttpServer())
+        .patch(`/admin/rentals/${rentalId}`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ status: 'ongoing' });
+      expect(toOngoing.status).toBe(200);
+
+      const toCompleted = await request(app.getHttpServer())
+        .patch(`/admin/rentals/${rentalId}`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ status: 'completed' });
+      expect(toCompleted.status).toBe(200);
+
+      // and now it's terminal — nothing should move it further
+      const backToReserved = await request(app.getHttpServer())
+        .patch(`/admin/rentals/${rentalId}`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ status: 'reserved' });
+      expect(backToReserved.status).toBe(400);
+    });
+
+    it("client PATCH cannot move their own booking straight to 'completed' or 'ongoing'", async () => {
+      const rentalId = await createReservedRental();
+
+      const toCompleted = await request(app.getHttpServer())
+        .patch(`/rentals/${rentalId}`)
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send({ status: 'completed' });
+      expect(toCompleted.status).toBe(403);
+
+      const toOngoing = await request(app.getHttpServer())
+        .patch(`/rentals/${rentalId}`)
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send({ status: 'ongoing' });
+      expect(toOngoing.status).toBe(403);
+
+      const rental = await prisma.rental.findUnique({ where: { id: rentalId } });
+      expect(rental?.status).toBe('reserved');
+    });
+
+    it('client PATCH can still cancel their own reserved booking', async () => {
+      const rentalId = await createReservedRental();
+      const res = await request(app.getHttpServer())
+        .patch(`/rentals/${rentalId}`)
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send({ status: 'cancelled' });
+      expect(res.status).toBe(200);
+    });
+  });
 });

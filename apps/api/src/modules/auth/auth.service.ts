@@ -198,6 +198,8 @@ export class AuthService {
           city: true,
           image: true,
           role: true,
+          status: true,
+          deactivatedAt: true,
           createdAt: true,
         },
       });
@@ -224,6 +226,8 @@ export class AuthService {
         firstname: agencyUser.firstname,
         role: agencyUser.role,
         image: agencyUser.image,
+        status: agencyUser.status,
+        deactivatedAt: agencyUser.deactivatedAt,
         agency: agencyUser.Agency
           ? {
               id: agencyUser.Agency.id,

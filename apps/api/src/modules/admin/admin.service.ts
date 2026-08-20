@@ -2,6 +2,7 @@ import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/commo
 import { PrismaService } from '../../prisma/prisma.service';
 import { RentalsService } from '../rentals/rentals.service';
 import { RentalQueryDto } from '../rentals/dto';
+import { RentalStatus } from '@rentalcar/database';
 
 @Injectable()
 export class AdminService {
@@ -16,14 +17,15 @@ export class AdminService {
 
     const [
       totalCars,
-      rentals,
+      rentalCounts,
       totalRevenue,
       monthlyRevenue,
     ] = await Promise.all([
       this.prisma.car.count({ where: { agencyId } }),
-      this.prisma.rental.findMany({
+      this.prisma.rental.groupBy({
+        by: ['status'],
         where: { car: { agencyId } },
-        select: { status: true },
+        _count: { _all: true },
       }),
       this.prisma.rental.aggregate({
         where: { car: { agencyId }, status: 'completed' },
@@ -39,15 +41,18 @@ export class AdminService {
       }),
     ]);
 
-    const pendingRentals = rentals.filter((r) => r.status === 'reserved').length;
-    const activeRentals = rentals.filter((r) => r.status === 'ongoing').length;
-    const completedRentals = rentals.filter((r) => r.status === 'completed').length;
+    const countFor = (status: RentalStatus) =>
+      rentalCounts.find((r) => r.status === status)?._count._all ?? 0;
+    const totalRentals = rentalCounts.reduce((sum, r) => sum + r._count._all, 0);
+    const pendingRentals = countFor('reserved');
+    const activeRentals = countFor('ongoing');
+    const completedRentals = countFor('completed');
 
     return {
       totalCars,
       availableCars: totalCars - activeRentals,
       rentedCars: activeRentals,
-      totalRentals: rentals.length,
+      totalRentals,
       pendingRentals,
       activeRentals,
       completedRentals,
@@ -62,7 +67,7 @@ export class AdminService {
 
   async updateRentalStatus(
     rentalId: number,
-    status: string,
+    status: RentalStatus,
     agencyId: number,
   ) {
     return this.rentalsService.updateStatus(rentalId, status, agencyId);

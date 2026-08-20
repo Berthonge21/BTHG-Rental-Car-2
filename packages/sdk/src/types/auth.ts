@@ -41,6 +41,18 @@ export interface AuthResponse {
   user: UserResponse;
 }
 
+// POST /auth/register does not log the caller in — it only creates the
+// account. No tokens are issued; call login() separately afterward.
+export interface RegisterResponse {
+  message: string;
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    firstname: string;
+  };
+}
+
 export interface CurrentUserAgency {
   id: number;
   name: string;
