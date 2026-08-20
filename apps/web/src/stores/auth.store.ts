@@ -7,6 +7,7 @@ interface AuthState {
   user: CurrentUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitializing: boolean;
   error: string | null;
 
   // Actions
@@ -36,6 +37,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      isInitializing: true,
       error: null,
 
       setUser: (user) => {
@@ -133,19 +135,35 @@ export const useAuthStore = create<AuthState>()(
       },
 
       fetchUser: async () => {
+        const state = get();
+
+        // Fast path: already have cached user data — render immediately,
+        // validate token silently in the background
+        if (state.isAuthenticated && state.user) {
+          set({ isInitializing: false });
+          api.auth.me()
+            .then((user) => set({ user, isAuthenticated: true }))
+            .catch(async () => {
+              await api.clearTokens();
+              set({ user: null, isAuthenticated: false });
+            });
+          return;
+        }
+
+        // Slow path: no cached data — check token then call /auth/me
         const isAuth = await api.isAuthenticated();
         if (!isAuth) {
-          set({ user: null, isAuthenticated: false });
+          set({ user: null, isAuthenticated: false, isInitializing: false });
           return;
         }
 
         set({ isLoading: true });
         try {
           const user = await api.auth.me();
-          set({ user, isAuthenticated: true, isLoading: false });
+          set({ user, isAuthenticated: true, isLoading: false, isInitializing: false });
         } catch {
           await api.clearTokens();
-          set({ user: null, isAuthenticated: false, isLoading: false });
+          set({ user: null, isAuthenticated: false, isLoading: false, isInitializing: false });
         }
       },
 
