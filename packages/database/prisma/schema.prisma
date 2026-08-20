@@ -3,8 +3,18 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url  = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Runtime connection — the app's own queries. On Supabase this should be
+  // the Transaction pooler (port 6543, ?pgbouncer=true): short-lived
+  // connections, safe under serverless/many-instance concurrency.
+  url       = env("DATABASE_URL")
+  // Migrations and introspection need a connection that supports prepared
+  // statements, which transaction-mode pooling does not reliably provide.
+  // On Supabase this should be the Session pooler (port 5432, no
+  // pgbouncer=true) or a direct connection. Prisma's env() has no fallback
+  // — DIRECT_URL must always be set, even to the same value as
+  // DATABASE_URL, wherever there is no separate pooler (e.g. local dev).
+  directUrl = env("DIRECT_URL")
 }
 
 
@@ -52,7 +62,17 @@ model AgencyUser {
   role          UserRole @default(admin)
   status        Status   @default(activate)
   deactivatedAt DateTime? @map("deactivated_at")
-  Agency        Agency?
+  // Which agency this staff member belongs to. Nullable only because a
+  // superAdmin has no agency; an 'admin' role user with a null agencyId is
+  // an application-level integrity issue (see requireTenantScope) rather
+  // than a supported state.
+  agencyId      Int?
+  Agency        Agency?    @relation("AgencyStaff", fields: [agencyId], references: [id])
+  // Reverse of Agency.responsibleId — the agency this user is the formal
+  // "responsible" contact for, distinct from agency membership above.
+  ResponsibleOf Agency?    @relation("AgencyResponsible")
+
+  @@index([agencyId])
 }
 
 model Agency {
@@ -66,7 +86,8 @@ model Agency {
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @default(now()) @map("updated_at")
   status        Status         @default(activate)
-  AgencyUser    AgencyUser     @relation(fields: [responsibleId], references: [id])
+  AgencyUser    AgencyUser     @relation("AgencyResponsible", fields: [responsibleId], references: [id])
+  Staff         AgencyUser[]   @relation("AgencyStaff")
   Cars          Car[]
   Notification  Notification[]
   Parking       Parking[]

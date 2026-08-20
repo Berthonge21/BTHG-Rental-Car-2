@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsEmail, MinLength, MaxLength, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsEmail, MinLength, MaxLength, IsOptional, IsEnum, IsInt } from 'class-validator';
 import { UserRole } from '@rentalcar/database';
 
 export class CreateAdminUserDto {
@@ -53,4 +53,13 @@ export class CreateAdminUserDto {
   @IsOptional()
   @IsString()
   image?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Agency this admin belongs to. Required unless role is superAdmin — an admin created without one cannot access any agency-scoped resource.',
+    example: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  agencyId?: number;
 }

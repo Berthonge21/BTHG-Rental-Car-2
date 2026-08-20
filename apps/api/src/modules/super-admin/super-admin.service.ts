@@ -111,13 +111,39 @@ export class SuperAdminService {
       throw new ConflictException('Email already registered');
     }
 
+    const role = dto.role || 'admin';
+
+    if (role === 'superAdmin') {
+      if (dto.agencyId) {
+        throw new BadRequestException('A Super Admin cannot be assigned to an agency');
+      }
+    } else {
+      if (!dto.agencyId) {
+        throw new BadRequestException(
+          'agencyId is required to create an admin — without one they cannot access any agency-scoped resource',
+        );
+      }
+
+      const agency = await this.prisma.agency.findUnique({
+        where: { id: dto.agencyId },
+      });
+
+      if (!agency) {
+        throw new NotFoundException(`Agency with ID ${dto.agencyId} not found`);
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
     return this.prisma.agencyUser.create({
       data: {
-        ...dto,
+        name: dto.name,
+        firstname: dto.firstname,
+        email: dto.email,
         password: hashedPassword,
-        role: dto.role || 'admin',
+        image: dto.image,
+        role,
+        agencyId: role === 'superAdmin' ? null : dto.agencyId,
       },
       select: {
         id: true,
@@ -127,10 +153,19 @@ export class SuperAdminService {
         role: true,
         status: true,
         createdAt: true,
+        agencyId: true,
+        Agency: { select: { id: true, name: true } },
       },
     });
   }
 
+  /**
+   * Adds an admin as a staff member of an agency (AgencyUser.agencyId).
+   * This is deliberately independent of Agency.responsibleId, which
+   * remains a separate, still-1:1 "primary contact" concept set at
+   * agency creation — an agency can have many staff admins via this
+   * endpoint, only one of which is ever its formal Responsible.
+   */
   async assignAdminToAgency(userId: number, dto: AssignAgencyDto) {
     const user = await this.prisma.agencyUser.findUnique({
       where: { id: userId },
@@ -138,6 +173,10 @@ export class SuperAdminService {
 
     if (!user) {
       throw new NotFoundException(`Admin user with ID ${userId} not found`);
+    }
+
+    if (user.role === 'superAdmin') {
+      throw new BadRequestException('Cannot assign an agency to a Super Admin');
     }
 
     const agency = await this.prisma.agency.findUnique({
@@ -148,40 +187,48 @@ export class SuperAdminService {
       throw new NotFoundException(`Agency with ID ${dto.agencyId} not found`);
     }
 
-    if (agency.responsibleId !== userId) {
-      const existingAgency = await this.prisma.agency.findUnique({
-        where: { responsibleId: userId },
-      });
+    const updated = await this.prisma.agencyUser.update({
+      where: { id: userId },
+      data: { agencyId: dto.agencyId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        firstname: true,
+        role: true,
+        status: true,
+        deactivatedAt: true,
+        image: true,
+        createdAt: true,
+        Agency: { select: { id: true, name: true } },
+      },
+    });
 
-      if (existingAgency) {
-        throw new BadRequestException(
-          `This admin is already responsible for agency: ${existingAgency.name}`,
-        );
-      }
-
-      return this.prisma.agency.update({
-        where: { id: dto.agencyId },
-        data: { responsibleId: userId },
-        include: {
-          AgencyUser: {
-            select: {
-              id: true,
-              name: true,
-              firstname: true,
-              email: true,
-            },
-          },
-        },
-      });
-    }
-
-    return agency;
+    return {
+      id: updated.id,
+      email: updated.email,
+      name: updated.name,
+      firstname: updated.firstname,
+      role: updated.role,
+      status: updated.status,
+      deactivatedAt: updated.deactivatedAt,
+      image: updated.image,
+      createdAt: updated.createdAt,
+      agencyId: updated.Agency?.id || null,
+      agencyName: updated.Agency?.name || null,
+      agency: updated.Agency || null,
+    };
   }
 
   async updateAdminStatus(userId: number, dto: UpdateAdminStatusDto) {
     const user = await this.prisma.agencyUser.findUnique({
       where: { id: userId },
-      include: { Agency: true },
+      // ResponsibleOf, not Agency: whether deactivating this admin cascades
+      // to their agency's status is specifically about being the formal
+      // responsible contact, not general staff membership — an agency can
+      // now have several staff admins, and deactivating one of them should
+      // not deactivate the whole agency.
+      include: { ResponsibleOf: true },
     });
 
     if (!user) {
@@ -192,10 +239,10 @@ export class SuperAdminService {
       throw new BadRequestException('Cannot change status of a Super Admin');
     }
 
-    if (dto.status === 'deactivate' && user.Agency) {
+    if (dto.status === 'deactivate' && user.ResponsibleOf) {
       const activeRentals = await this.prisma.rental.findFirst({
         where: {
-          car: { agencyId: user.Agency.id },
+          car: { agencyId: user.ResponsibleOf.id },
           status: { in: ['reserved', 'ongoing'] },
         },
       });
@@ -229,13 +276,17 @@ export class SuperAdminService {
             name: true,
           },
         },
+        ResponsibleOf: {
+          select: { id: true },
+        },
       },
     });
 
-    // Also update the agency status when deactivating/reactivating an admin
-    if (updatedUser.Agency) {
+    // Cascade to the agency's own status only when this admin is its
+    // formal responsible contact — see the comment above.
+    if (updatedUser.ResponsibleOf) {
       await this.prisma.agency.update({
-        where: { id: updatedUser.Agency.id },
+        where: { id: updatedUser.ResponsibleOf.id },
         data: {
           status: dto.status,
           updatedAt: new Date(),

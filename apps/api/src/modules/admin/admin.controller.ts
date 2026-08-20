@@ -8,7 +8,6 @@ import {
   UseGuards,
   ParseIntPipe,
   HttpStatus,
-  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -23,6 +22,7 @@ import { RentalQueryDto, RentalResponseDto } from '../rentals/dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles, CurrentUser } from '../../common/decorators';
+import { requireTenantScope } from '../../common/utils/tenant-scope';
 
 @ApiTags('admin')
 @Controller('admin')
@@ -46,11 +46,7 @@ export class AdminController {
   async getDashboard(
     @CurrentUser() user: { agencyId?: number; role: string },
   ) {
-    if (!user.agencyId && user.role !== 'superAdmin') {
-      throw new ForbiddenException('You are not assigned to an agency');
-    }
-
-    return this.adminService.getDashboard(user.agencyId!);
+    return this.adminService.getDashboard(requireTenantScope(user)!);
   }
 
   @Get('rentals')
@@ -68,11 +64,7 @@ export class AdminController {
     @CurrentUser() user: { agencyId?: number; role: string },
     @Query() query: RentalQueryDto,
   ) {
-    if (!user.agencyId && user.role !== 'superAdmin') {
-      throw new ForbiddenException('You are not assigned to an agency');
-    }
-
-    return this.adminService.getRentals(user.agencyId!, query);
+    return this.adminService.getRentals(requireTenantScope(user)!, query);
   }
 
   @Get('rentals/:id')
@@ -92,12 +84,7 @@ export class AdminController {
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: { agencyId?: number; role: string },
   ) {
-    if (!user.agencyId && user.role !== 'superAdmin') {
-      throw new ForbiddenException('You are not assigned to an agency');
-    }
-
-    const agencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
-    return this.adminService.getRental(id, agencyId);
+    return this.adminService.getRental(id, requireTenantScope(user));
   }
 
   @Patch('rentals/:id')
@@ -118,11 +105,6 @@ export class AdminController {
     @Body() dto: UpdateRentalStatusDto,
     @CurrentUser() user: { agencyId?: number; role: string },
   ) {
-    if (!user.agencyId && user.role !== 'superAdmin') {
-      throw new ForbiddenException('You are not assigned to an agency');
-    }
-
-    const agencyId = user.role === 'superAdmin' ? undefined : user.agencyId;
-    return this.adminService.updateRentalStatus(id, dto.status, agencyId!);
+    return this.adminService.updateRentalStatus(id, dto.status, requireTenantScope(user)!);
   }
 }
