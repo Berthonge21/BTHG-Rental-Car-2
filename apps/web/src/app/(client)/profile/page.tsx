@@ -13,7 +13,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { api } from '@/lib/api';
 import { ProgressButton } from '@/components/ui/ProgressButton';
 import { ConfirmDialog } from '@/components/ui';
-import { readFileAsDataURL, validateImageFile } from '@/lib/imageUtils';
+import { compressImage, validateImageFile } from '@/lib/imageUtils';
 
 interface ProfileFormData {
   firstname: string;
@@ -75,7 +75,7 @@ export default function ClientProfilePage() {
       return;
     }
     try {
-      const dataUrl = await readFileAsDataURL(file);
+      const dataUrl = await compressImage(file);
       setValue('image', dataUrl, { shouldDirty: true });
       setImagePreview(dataUrl);
     } catch {

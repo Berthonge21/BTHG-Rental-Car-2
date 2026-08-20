@@ -51,21 +51,59 @@ export function validateImageFile(file: File): string | null {
   return null;
 }
 
+const COMPRESS_MAX_DIMENSION = 1600; // px, long edge
+const COMPRESS_JPEG_QUALITY = 0.8;
+
 /**
- * Read a File as a base64 data-URL string.
+ * Resize an image file to at most `maxDimension` on its long edge and
+ * re-encode it as JPEG, returning a base64 data-URL — client-side, before
+ * it's ever serialized into the multi-image field. A typical 2MB phone
+ * photo becomes a few hundred KB; four of them stay well under the
+ * server's body-size limit instead of pushing a ~10MB request. Runs
+ * independent of (and stays useful regardless of) any future move to
+ * real object storage on the backend.
  */
-export function readFileAsDataURL(file: File): Promise<string> {
+export function compressImage(
+  file: File,
+  maxDimension = COMPRESS_MAX_DIMENSION,
+  quality = COMPRESS_JPEG_QUALITY,
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        reject(new Error('FileReader did not return a string'));
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
       }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas 2D context unavailable'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
     };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Failed to load image for compression'));
+    };
+
+    img.src = objectUrl;
   });
 }
 

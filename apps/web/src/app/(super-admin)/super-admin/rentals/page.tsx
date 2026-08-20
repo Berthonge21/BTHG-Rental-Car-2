@@ -16,19 +16,13 @@ import { DataTable, type Column } from '@/components/ui';
 import { useSuperAdminRentals } from '@/hooks';
 import type { Rental, RentalStatus } from '@bthgrentalcar/sdk';
 import { format } from 'date-fns';
-
-const statusColors: Record<RentalStatus, string> = {
-  reserved: 'yellow',
-  ongoing: 'blue',
-  completed: 'green',
-  cancelled: 'red',
-};
+import { rentalStatusColors } from '@/lib/statusColors';
 
 export default function SuperAdminRentalsPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<RentalStatus | ''>('');
 
-  const { data, isLoading } = useSuperAdminRentals({
+  const { data, isLoading, isError, error, refetch } = useSuperAdminRentals({
     page,
     limit: 10,
     status: statusFilter || undefined,
@@ -85,7 +79,7 @@ export default function SuperAdminRentalsPage() {
     {
       header: 'Status',
       accessor: (row) => (
-        <Badge colorScheme={statusColors[row.status]} textTransform="capitalize">
+        <Badge colorScheme={rentalStatusColors[row.status]} textTransform="capitalize">
           {row.status}
         </Badge>
       ),
@@ -131,6 +125,9 @@ export default function SuperAdminRentalsPage() {
           columns={columns}
           data={data?.data || []}
           isLoading={isLoading}
+          isError={isError}
+          errorMessage={error instanceof Error ? error.message : undefined}
+          onRetry={() => refetch()}
           page={page}
           totalPages={data?.meta.totalPages || 1}
           onPageChange={setPage}

@@ -42,21 +42,12 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { DataTable, LoadingSpinner, type Column } from '@/components/ui';
+import { DataTable, LoadingSpinner, ErrorState, type Column } from '@/components/ui';
 import { useSuperAdminDashboard, useSuperAdminAgencies, useSuperAdminUsers } from '@/hooks';
 import { useAuthStore } from '@/stores/auth.store';
-import type { Agency, AdminUser, Status, UserRole } from '@bthgrentalcar/sdk';
+import type { Agency, AdminUser } from '@bthgrentalcar/sdk';
 import { useMemo } from 'react';
-
-const statusColors: Record<Status, string> = {
-  activate: 'green',
-  deactivate: 'red',
-};
-
-const roleColors: Record<UserRole, string> = {
-  admin: 'blue',
-  superAdmin: 'purple',
-};
+import { activationStatusColors, roleColors } from '@/lib/statusColors';
 
 // Chart colors
 const DONUT_COLORS = ['#C9A227', '#1BC5BD', '#0B1C2D', '#6366F1'];
@@ -67,7 +58,7 @@ const BAR_COLORS = {
 
 export default function SuperAdminDashboardPage() {
   const { user } = useAuthStore();
-  const { data: stats, isLoading: statsLoading } = useSuperAdminDashboard();
+  const { data: stats, isLoading: statsLoading, isError: statsError, error: statsErrorObj, refetch: refetchStats } = useSuperAdminDashboard();
   const { data: agenciesData, isLoading: agenciesLoading } = useSuperAdminAgencies({
     limit: 5,
   });
@@ -131,6 +122,16 @@ export default function SuperAdminDashboardPage() {
     return <LoadingSpinner text="Loading dashboard..." />;
   }
 
+  if (statsError) {
+    return (
+      <ErrorState
+        title="Couldn't load dashboard"
+        message={statsErrorObj instanceof Error ? statsErrorObj.message : undefined}
+        onRetry={() => refetchStats()}
+      />
+    );
+  }
+
   const agencyColumns: Column<Agency>[] = [
     {
       header: 'Agency',
@@ -166,7 +167,7 @@ export default function SuperAdminDashboardPage() {
       header: 'Status',
       accessor: (row) => (
         <Badge
-          colorScheme={statusColors[row.status]}
+          colorScheme={activationStatusColors[row.status]}
           textTransform="capitalize"
           borderRadius="md"
           px={2}

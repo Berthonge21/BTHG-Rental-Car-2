@@ -19,12 +19,8 @@ import {
 import { FiPlus, FiTrash2, FiEye } from 'react-icons/fi';
 import { DataTable, ConfirmDialog, type Column } from '@/components/ui';
 import { useSuperAdminAgencies, useDeleteAgency } from '@/hooks';
-import type { Agency, Status } from '@bthgrentalcar/sdk';
-
-const statusColors: Record<Status, string> = {
-  activate: 'green',
-  deactivate: 'red',
-};
+import type { Agency } from '@bthgrentalcar/sdk';
+import { activationStatusColors } from '@/lib/statusColors';
 
 export default function SuperAdminAgenciesPage() {
   const router = useRouter();
@@ -34,7 +30,7 @@ export default function SuperAdminAgenciesPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const { data, isLoading } = useSuperAdminAgencies({ page, limit: 10, search: search || undefined });
+  const { data, isLoading, isError, error, refetch } = useSuperAdminAgencies({ page, limit: 10, search: search || undefined });
   const deleteMutation = useDeleteAgency();
 
   const filteredData = (data?.data || []).filter((agency) => {
@@ -94,7 +90,7 @@ export default function SuperAdminAgenciesPage() {
     {
       header: 'Status',
       accessor: (row) => (
-        <Badge colorScheme={statusColors[row.status]} textTransform="capitalize">
+        <Badge colorScheme={activationStatusColors[row.status]} textTransform="capitalize">
           {row.status}
         </Badge>
       ),
@@ -157,6 +153,9 @@ export default function SuperAdminAgenciesPage() {
           columns={columns}
           data={filteredData}
           isLoading={isLoading}
+          isError={isError}
+          errorMessage={error instanceof Error ? error.message : undefined}
+          onRetry={() => refetch()}
           page={page}
           totalPages={data?.meta.totalPages || 1}
           onPageChange={setPage}

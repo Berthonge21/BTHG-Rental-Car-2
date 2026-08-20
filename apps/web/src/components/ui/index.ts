@@ -3,6 +3,7 @@ export { TopNavigation, adminNavItems, superAdminNavItems } from './TopNavigatio
 export { Navbar } from './Navbar';
 export { StatCard } from './StatCard';
 export { LoadingSpinner, useMinLoading } from './LoadingSpinner';
+export { ErrorState } from './ErrorState';
 export { ProgressButton } from './ProgressButton';
 export { DataTable, type Column } from './DataTable';
 export { ConfirmDialog } from './ConfirmDialog';

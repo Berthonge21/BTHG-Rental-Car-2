@@ -28,6 +28,7 @@ import {
 } from '@chakra-ui/react';
 import { FiSearch, FiFilter, FiArrowRight } from 'react-icons/fi';
 import { useCars, useAgencies } from '@/hooks';
+import { ErrorState } from '@/components/ui';
 import { parseCarImages } from '@/lib/imageUtils';
 import type { Car } from '@bthgrentalcar/sdk';
 
@@ -126,7 +127,7 @@ export default function CarsPage() {
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000]);
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useCars({ page, limit: 12, agencyId });
+  const { data, isLoading, isError, refetch } = useCars({ page, limit: 12, agencyId });
   const { data: agenciesData } = useAgencies({ limit: 100 });
 
   const filterBg = useColorModeValue('white', 'navy.700');
@@ -267,6 +268,8 @@ export default function CarsPage() {
             <SimpleGrid columns={{ base: 1, sm: 2, xl: 3 }} spacing={5}>
               {Array.from({ length: 6 }).map((_, i) => <CarCardSkeleton key={i} />)}
             </SimpleGrid>
+          ) : isError ? (
+            <ErrorState onRetry={() => refetch()} />
           ) : filtered.length === 0 ? (
             <Box textAlign="center" py={20}>
               <Text fontSize="xl" mb={2}>No cars found</Text>

@@ -16,17 +16,11 @@ import {
   useColorModeValue,
 } from '@chakra-ui/react';
 import { FiEye, FiCheck, FiX, FiPlay } from 'react-icons/fi';
-import { LoadingSpinner } from '@/components/ui';
+import { LoadingSpinner, ErrorState } from '@/components/ui';
 import { useAdminRentals, useUpdateRentalStatus } from '@/hooks';
 import type { RentalStatus } from '@bthgrentalcar/sdk';
 import { format } from 'date-fns';
-
-const statusColors: Record<RentalStatus, string> = {
-  reserved: 'yellow',
-  ongoing: 'blue',
-  completed: 'green',
-  cancelled: 'red',
-};
+import { rentalStatusColors } from '@/lib/statusColors';
 
 const statusLabels: Record<RentalStatus, string> = {
   reserved: 'Scheduled',
@@ -48,7 +42,7 @@ export default function AdminRentalsPage() {
   const hoverBg = useColorModeValue('gray.50', 'navy.600');
   const selectBg = useColorModeValue('white', 'navy.700');
 
-  const { data, isLoading } = useAdminRentals({
+  const { data, isLoading, isError, error, refetch } = useAdminRentals({
     page,
     limit: 20,
     status: statusFilter || undefined,
@@ -72,6 +66,10 @@ export default function AdminRentalsPage() {
       });
     }
   };
+
+  if (isError) {
+    return <ErrorState message={error instanceof Error ? error.message : undefined} onRetry={() => refetch()} />;
+  }
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -251,7 +249,7 @@ export default function AdminRentalsPage() {
                   </Box>
                   <Box as="td" p={4}>
                     <Badge
-                      colorScheme={statusColors[rental.status]}
+                      colorScheme={rentalStatusColors[rental.status]}
                       textTransform="capitalize"
                       borderRadius="md"
                       px={3}

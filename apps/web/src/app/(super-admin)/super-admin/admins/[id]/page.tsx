@@ -32,18 +32,13 @@ import { LoadingSpinner, ConfirmDialog } from '@/components/ui';
 import { useSuperAdminUser, useSuperAdminAgencies, useAssignAgency, useUpdateUserStatus } from '@/hooks';
 import { ProgressButton } from '@/components/ui/ProgressButton';
 import { Status } from '@bthgrentalcar/sdk';
-import type { UserRole } from '@bthgrentalcar/sdk';
+import { roleColors } from '@/lib/statusColors';
 
 const assignAgencySchema = z.object({
   agencyId: z.coerce.number().min(1, 'Please select an agency'),
 });
 
 type AssignAgencyFormData = z.infer<typeof assignAgencySchema>;
-
-const roleColors: Record<UserRole, string> = {
-  admin: 'blue',
-  superAdmin: 'purple',
-};
 
 export default function AdminDetailsPage() {
   const router = useRouter();

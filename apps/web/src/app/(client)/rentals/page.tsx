@@ -9,17 +9,11 @@ import {
 } from '@chakra-ui/react';
 import { FiCalendar, FiArrowRight, FiSearch, FiX } from 'react-icons/fi';
 import { useRentals, useCancelRental } from '@/hooks';
-import { ConfirmDialog } from '@/components/ui';
+import { ConfirmDialog, ErrorState } from '@/components/ui';
 import { RentalStatus } from '@bthgrentalcar/sdk';
 import { format, parseISO } from 'date-fns';
 import type { Rental } from '@bthgrentalcar/sdk';
-
-const STATUS_COLOR: Record<string, string> = {
-  reserved: 'yellow',
-  ongoing: 'blue',
-  completed: 'green',
-  cancelled: 'red',
-};
+import { rentalStatusColors } from '@/lib/statusColors';
 
 function RentalCard({ rental, onCancel }: { rental: Rental; onCancel?: (id: number) => void }) {
   const cardBg = useColorModeValue('white', 'navy.700');
@@ -53,7 +47,7 @@ function RentalCard({ rental, onCancel }: { rental: Rental; onCancel?: (id: numb
               <Text fontWeight="bold" fontSize="md">{rental.car?.brand} {rental.car?.model}</Text>
               <Text fontSize="sm" color={textMuted}>{rental.car?.year}</Text>
             </Box>
-            <Badge colorScheme={STATUS_COLOR[rental.status] ?? 'gray'} borderRadius="full" px={3} py={1} textTransform="capitalize">
+            <Badge colorScheme={rentalStatusColors[rental.status] ?? 'gray'} borderRadius="full" px={3} py={1} textTransform="capitalize">
               {rental.status}
             </Badge>
           </Flex>
@@ -106,9 +100,9 @@ export default function RentalsPage() {
   const [cancelId, setCancelId] = useState<number | null>(null);
   const cancelMutation = useCancelRental();
 
-  const { data: activeData, isLoading: activeLoading } = useRentals({ status: RentalStatus.RESERVED });
+  const { data: activeData, isLoading: activeLoading, isError: activeError, refetch: refetchActive } = useRentals({ status: RentalStatus.RESERVED });
   const { data: ongoingData } = useRentals({ status: RentalStatus.ONGOING });
-  const { data: historyData, isLoading: historyLoading } = useRentals({ status: RentalStatus.COMPLETED });
+  const { data: historyData, isLoading: historyLoading, isError: historyError, refetch: refetchHistory } = useRentals({ status: RentalStatus.COMPLETED });
 
   const textMuted = useColorModeValue('text.muted', 'gray.400');
 
@@ -154,6 +148,8 @@ export default function RentalsPage() {
           <TabPanel px={0}>
             {activeLoading ? (
               <Center py={10}><Spinner size="lg" color="brand.400" /></Center>
+            ) : activeError ? (
+              <ErrorState onRetry={() => refetchActive()} />
             ) : activeRentals.length === 0 ? (
               <Center py={20}>
                 <VStack spacing={4}>
@@ -175,6 +171,8 @@ export default function RentalsPage() {
           <TabPanel px={0}>
             {historyLoading ? (
               <Center py={10}><Spinner size="lg" color="brand.400" /></Center>
+            ) : historyError ? (
+              <ErrorState onRetry={() => refetchHistory()} />
             ) : historyRentals.length === 0 ? (
               <Center py={20}>
                 <VStack spacing={3}>
