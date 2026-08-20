@@ -12,8 +12,13 @@ on:
     branches: [main]
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # apps/api's e2e suite runs against the real Supabase project (below) —
+  # not a disposable per-run database — so two CI runs executing at once
+  # would race on the same fixture rows (e.g. two branches both creating
+  # "Tenancy Test Agency A"). Group globally, not per-ref, and don't cancel
+  # in-progress runs; queue instead so every run still gets a clean result.
+  group: ci-shared-database
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -24,27 +29,16 @@ jobs:
     runs-on: ubuntu-latest
 
     # apps/api's e2e suite exercises real authorization/tenancy/booking
-    # behavior against a real Postgres database (including the GiST
-    # exclusion constraint that prevents double-booking) — a disposable
-    # service container, never a shared or production database.
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
+    # behavior — including the GiST exclusion constraint that prevents
+    # double-booking — against the actual Supabase project (DATABASE_URL /
+    # DIRECT_URL below are repo secrets), the same pgbouncer/pooler setup
+    # real traffic goes through. Every spec cleans up its own fixtures by a
+    # unique prefix in beforeAll/afterAll, so repeated runs stay clean; the
+    # concurrency group above prevents two runs from racing on that same
+    # fixture data.
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
       JWT_SECRET: ci-only-secret-not-for-any-real-environment
       JWT_EXPIRES_IN: 1h
       JWT_REFRESH_EXPIRES_IN: 7d
