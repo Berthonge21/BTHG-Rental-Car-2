@@ -1,5 +1,5 @@
 {
-  "name": "@berthonge21/sdk",
+  "name": "@bthgrentalcar/sdk",
   "version": "1.0.0",
   "description": "TypeScript SDK for BTHG Rental Car API",
   "repository": {

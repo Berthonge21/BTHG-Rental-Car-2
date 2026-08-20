@@ -1,5 +1,14 @@
 name: Publish SDK to GitHub Packages
 
+# NOTE: apps/web now consumes packages/sdk directly via the Yarn workspace
+# link (package name "@bthgrentalcar/sdk", no registry involved) rather than
+# this published artifact, so this workflow is currently dormant — it only
+# runs on an "sdk/v*" tag push or a manual dispatch, neither of which happens
+# in normal development. If external publishing is revived later (e.g. for a
+# mobile app outside this monorepo), update the scope below to match wherever
+# the package is actually published — "@berthonge21" ties it to a personal
+# GitHub account, which is deliberately avoided for the workspace-linked path.
+
 on:
   push:
     tags:

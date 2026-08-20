@@ -1,5 +1,5 @@
 {
-  "name": "bthg-rental-web",
+  "name": "@bthgrentalcar/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@bthgrentalcar/sdk": "file:../BTHG-Rental-Car-2/packages/sdk",
+    "@bthgrentalcar/sdk": "*",
     "@chakra-ui/next-js": "^2.2.0",
     "@chakra-ui/react": "^2.8.2",
     "@emotion/react": "^11.11.3",
