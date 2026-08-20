@@ -103,8 +103,8 @@ export class RentalsService {
   }
 
   async create(userId: number, dto: CreateRentalDto) {
-    const car = await this.prisma.car.findUnique({
-      where: { id: dto.carId },
+    const car = await this.prisma.car.findFirst({
+      where: { id: dto.carId, deletedAt: null },
     });
 
     if (!car) {

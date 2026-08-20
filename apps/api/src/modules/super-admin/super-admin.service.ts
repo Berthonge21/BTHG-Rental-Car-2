@@ -35,9 +35,9 @@ export class SuperAdminService {
       totalRevenue,
       monthlyRevenue,
     ] = await Promise.all([
-      this.prisma.agency.count(),
-      this.prisma.agency.count({ where: { status: 'activate' } }),
-      this.prisma.car.count(),
+      this.prisma.agency.count({ where: { deletedAt: null } }),
+      this.prisma.agency.count({ where: { status: 'activate', deletedAt: null } }),
+      this.prisma.car.count({ where: { deletedAt: null } }),
       this.prisma.agencyUser.count(),
       this.prisma.client.count(),
       this.prisma.rental.groupBy({
@@ -80,6 +80,7 @@ export class SuperAdminService {
 
     const [agencies, total] = await Promise.all([
       this.prisma.agency.findMany({
+        where: { deletedAt: null },
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -99,7 +100,7 @@ export class SuperAdminService {
           },
         },
       }),
-      this.prisma.agency.count(),
+      this.prisma.agency.count({ where: { deletedAt: null } }),
     ]);
 
     return {
@@ -134,8 +135,8 @@ export class SuperAdminService {
         );
       }
 
-      const agency = await this.prisma.agency.findUnique({
-        where: { id: dto.agencyId },
+      const agency = await this.prisma.agency.findFirst({
+        where: { id: dto.agencyId, deletedAt: null },
       });
 
       if (!agency) {
@@ -193,8 +194,8 @@ export class SuperAdminService {
       throw new BadRequestException('Cannot assign an agency to a Super Admin');
     }
 
-    const agency = await this.prisma.agency.findUnique({
-      where: { id: dto.agencyId },
+    const agency = await this.prisma.agency.findFirst({
+      where: { id: dto.agencyId, deletedAt: null },
     });
 
     if (!agency) {

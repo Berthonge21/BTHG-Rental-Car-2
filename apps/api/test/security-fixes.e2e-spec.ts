@@ -589,4 +589,93 @@ describe('Security fixes (e2e)', () => {
         .send({ status: 'activate' });
     });
   });
+
+  describe('Soft delete — Car and Agency', () => {
+    it('deleting a car hides it from listings but keeps the row', async () => {
+      const created = await prisma.car.create({
+        data: {
+          agencyId: agencyA.id,
+          brand: 'SoftDelete',
+          model: 'TestCar',
+          year: 2023,
+          mileage: 1000,
+          price: 40,
+          registration: 'SECFIX-SOFTDEL',
+          fuel: 'Gasoline',
+          door: 4,
+          gearBox: 'Automatic',
+        },
+      });
+
+      const del = await request(app.getHttpServer())
+        .delete(`/cars/${created.id}`)
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(del.status).toBe(200);
+
+      // Row still exists, just marked deleted.
+      const raw = await prisma.car.findUnique({ where: { id: created.id } });
+      expect(raw).not.toBeNull();
+      expect(raw?.deletedAt).not.toBeNull();
+
+      // But it's gone from every read path.
+      const getOne = await request(app.getHttpServer()).get(`/cars/${created.id}`);
+      expect(getOne.status).toBe(404);
+
+      const list = await request(app.getHttpServer()).get(`/cars?agencyId=${agencyA.id}`);
+      expect(list.body.data.some((c: { id: number }) => c.id === created.id)).toBe(false);
+    });
+
+    it('deleting an agency hides it from listings, deactivates it, but keeps the row', async () => {
+      const respHash = await bcrypt.hash(PASSWORD, 12);
+      const respUser = await prisma.agencyUser.create({
+        data: {
+          name: 'SoftDel',
+          firstname: 'Resp',
+          email: 'softdel-resp@secfix-test.local',
+          password: respHash,
+          role: 'admin',
+        },
+      });
+      const agency = await prisma.agency.create({
+        data: {
+          name: 'SecFix Test SoftDelete Agency',
+          address: '1 Test St',
+          email: 'softdel-agency@secfix-test.local',
+          telephone: '0000000099',
+          responsibleId: respUser.id,
+          status: 'activate',
+        },
+      });
+
+      const del = await request(app.getHttpServer())
+        .delete(`/agencies/${agency.id}`)
+        .set('Authorization', `Bearer ${tokenSuper}`);
+      expect(del.status).toBe(200);
+
+      const raw = await prisma.agency.findUnique({ where: { id: agency.id } });
+      expect(raw).not.toBeNull();
+      expect(raw?.deletedAt).not.toBeNull();
+      expect(raw?.status).toBe('deactivate');
+
+      const getOne = await request(app.getHttpServer()).get(`/agencies/${agency.id}`);
+      expect(getOne.status).toBe(404);
+
+      const list = await request(app.getHttpServer()).get('/agencies?limit=100');
+      expect(list.body.data.some((a: { id: number }) => a.id === agency.id)).toBe(false);
+
+      await prisma.agency.delete({ where: { id: agency.id } });
+      await prisma.agencyUser.delete({ where: { id: respUser.id } });
+    });
+
+    it('cannot delete a car with an active or reserved rental', async () => {
+      const del = await request(app.getHttpServer())
+        .delete(`/cars/${carA.id}`)
+        .set('Authorization', `Bearer ${tokenA}`);
+      // carA has active/reserved rentals from earlier tests in this suite.
+      expect(del.status).toBe(403);
+
+      const raw = await prisma.car.findUnique({ where: { id: carA.id } });
+      expect(raw?.deletedAt).toBeNull();
+    });
+  });
 });
