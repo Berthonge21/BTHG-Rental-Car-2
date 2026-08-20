@@ -108,6 +108,10 @@ export class AuthService {
     try {
       const payload = this.jwtService.verify(refreshToken);
 
+      if (payload.tokenType !== 'refresh') {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
       if (payload.type === 'client') {
         const client = await this.prisma.client.findUnique({
           where: { id: payload.sub },
@@ -235,7 +239,7 @@ export class AuthService {
     type: 'client' | 'agency',
     agencyId?: number,
   ) {
-    const payload = {
+    const basePayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
@@ -243,13 +247,15 @@ export class AuthService {
       ...(agencyId && { agencyId }),
     };
 
-    const accessToken = this.jwtService.sign(payload, {
-      expiresIn: '1h',
-    });
+    const accessToken = this.jwtService.sign(
+      { ...basePayload, tokenType: 'access' },
+      { expiresIn: '1h' },
+    );
 
-    const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: '7d',
-    });
+    const refreshToken = this.jwtService.sign(
+      { ...basePayload, tokenType: 'refresh' },
+      { expiresIn: '7d' },
+    );
 
     return {
       accessToken,

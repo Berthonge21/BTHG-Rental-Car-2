@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsDateString, IsNumber, Min, IsOptional } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsInt, IsDateString } from 'class-validator';
 
 export class CreateRentalDto {
   @ApiProperty({
@@ -36,13 +36,4 @@ export class CreateRentalDto {
   })
   @IsDateString()
   endTime: string;
-
-  @ApiPropertyOptional({
-    description: 'Total rental price (calculated automatically if not provided)',
-    example: 375.0,
-  })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  total?: number;
 }

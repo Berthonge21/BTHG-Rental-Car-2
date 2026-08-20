@@ -27,11 +27,19 @@ import {
   RentalResponseDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../../common/decorators';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { CurrentUser, Roles } from '../../common/decorators';
 
+// Client.role and AgencyUser.role are disjoint enums ('user' vs.
+// 'admin'/'superAdmin'), so gating on role here also closes the id-space
+// collision between AgencyUser.id and Client.id: an agency user's JWT can
+// never carry role: 'user', so it can never reach these client-scoped
+// routes and read/cancel a stranger's booking that happens to share a
+// numeric id. Agency staff must use /admin/rentals instead.
 @ApiTags('rentals')
 @Controller('rentals')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('user')
 @ApiBearerAuth('JWT-auth')
 export class RentalsController {
   constructor(private readonly rentalsService: RentalsService) {}

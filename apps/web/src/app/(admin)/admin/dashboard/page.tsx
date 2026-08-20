@@ -101,18 +101,15 @@ export default function AdminDashboardPage() {
     return data.filter(item => item.value > 0);
   }, [stats]);
 
-  // Revenue data - using stats or placeholder for months without data
-  const revenueData = useMemo(() => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const currentMonth = new Date().getMonth();
-
-    // Create monthly data, showing current month with actual revenue
-    return months.slice(0, currentMonth + 1).map((month, index) => ({
-      month,
-      revenue: index === currentMonth ? (stats?.monthlyRevenue || 0) : Math.floor(Math.random() * 15000) + 5000,
-      rentals: index === currentMonth ? (stats?.totalRentals || 0) : Math.floor(Math.random() * 50) + 20,
-    }));
-  }, [stats]);
+  // The backend has no revenue time-series endpoint yet — only the current
+  // month's totals are real. Show that one honest data point rather than
+  // inventing a multi-month history; see the empty state below for why the
+  // chart itself is hidden until real historical data exists.
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const currentMonth = new Date().getMonth();
+  const revenueData = stats
+    ? [{ month: months[currentMonth], revenue: stats.monthlyRevenue || 0, rentals: stats.totalRentals || 0 }]
+    : [];
 
   if (statsLoading) {
     return <LoadingSpinner text="Loading dashboard..." />;
@@ -305,12 +302,9 @@ export default function AdminDashboardPage() {
             <Flex justify="space-between" align="center" mb={4}>
               <Box>
                 <Text fontWeight="semibold" color="text.primary" mb={1}>Revenue Overview</Text>
-                <HStack spacing={2}>
-                  <Text fontSize="2xl" fontWeight="bold" color="text.primary">
-                    ${(stats?.totalRevenue || 89483).toLocaleString()}
-                  </Text>
-                  <Badge colorScheme="red" fontSize="xs">-12%</Badge>
-                </HStack>
+                <Text fontSize="2xl" fontWeight="bold" color="text.primary">
+                  ${(stats?.totalRevenue || 0).toLocaleString()}
+                </Text>
               </Box>
               <HStack spacing={4} fontSize="xs">
                 <HStack spacing={1}>
@@ -324,16 +318,25 @@ export default function AdminDashboardPage() {
               </HStack>
             </Flex>
             <Box h="220px">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueData} barGap={4}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} />
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} fontSize={12} tick={{ fill: axisTickColor }} />
-                  <YAxis axisLine={false} tickLine={false} fontSize={12} tick={{ fill: axisTickColor }} />
-                  <RechartsTooltip />
-                  <Bar dataKey="revenue" fill={BAR_COLORS.revenue} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="rentals" fill={BAR_COLORS.rentals} radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {revenueData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={revenueData} barGap={4}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={gridStroke} />
+                    <XAxis dataKey="month" axisLine={false} tickLine={false} fontSize={12} tick={{ fill: axisTickColor }} />
+                    <YAxis axisLine={false} tickLine={false} fontSize={12} tick={{ fill: axisTickColor }} />
+                    <RechartsTooltip />
+                    <Bar dataKey="revenue" fill={BAR_COLORS.revenue} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="rentals" fill={BAR_COLORS.rentals} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <Flex h="100%" align="center" justify="center" direction="column" gap={2}>
+                  <Icon as={FiCalendar} boxSize={6} color={textMuted} />
+                  <Text fontSize="sm" color={textMuted} textAlign="center">
+                    Revenue history isn't tracked yet — showing this month's total only.
+                  </Text>
+                </Flex>
+              )}
             </Box>
           </Box>
         </GridItem>
