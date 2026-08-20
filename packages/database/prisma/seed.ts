@@ -6,9 +6,10 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
-  // Hash password
-  const hashedPassword = await bcrypt.hash('Admin@123', 10);
-  const clientPassword = await bcrypt.hash('Client@123', 10);
+  // Hash password — cost 12, matching every other password hash in the app
+  // (auth.service.ts, super-admin.service.ts).
+  const hashedPassword = await bcrypt.hash('Admin@123', 12);
+  const clientPassword = await bcrypt.hash('Client@123', 12);
 
   // 1. Create Super Admin
   const superAdmin = await prisma.agencyUser.upsert({
@@ -57,6 +58,15 @@ async function main() {
     },
   });
   console.log('Created Agency 1:', agency1.name);
+
+  // Being Agency.responsibleId doesn't imply AgencyUser.agencyId — they're
+  // separate concepts (see schema.prisma). Every tenant-scoped operation
+  // keys off agencyId, so an admin with none set would be rejected by
+  // requireTenantScope on their own agency's resources.
+  await prisma.agencyUser.update({
+    where: { id: adminUser1.id },
+    data: { agencyId: agency1.id },
+  });
 
   // Agency 1 - 6 Cars
   const cars1 = await Promise.all([
@@ -203,6 +213,11 @@ async function main() {
     },
   });
   console.log('Created Agency 2:', agency2.name);
+
+  await prisma.agencyUser.update({
+    where: { id: adminUser2.id },
+    data: { agencyId: agency2.id },
+  });
 
   // Agency 2 - 3 Cars
   const cars2 = await Promise.all([

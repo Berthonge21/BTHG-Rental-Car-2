@@ -3,7 +3,6 @@ import {
   Post,
   Get,
   Body,
-  UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -17,8 +16,12 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto, AdminLoginDto, RegisterDto, AuthResponseDto, RefreshTokenDto, MessageResponseDto, ReactivateClientDto } from './dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser, Public } from '../../common/decorators';
+
+// @Get('me') and @Post('logout') below rely on the global JwtAuthGuard
+// (APP_GUARD in app.module.ts) rather than a local @UseGuards — every
+// route in this app is protected by default; @Public() opts a route out,
+// nothing needs to opt in.
 
 // Tighter than the app-wide default (see ThrottlerModule in app.module.ts)
 // — these are the credential-guessing/enumeration surface: unauthenticated,
@@ -129,7 +132,6 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({
     summary: 'Get current user',
@@ -145,7 +147,6 @@ export class AuthController {
   }
 
   @Post('logout')
-  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({

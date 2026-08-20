@@ -37,6 +37,6 @@ export function setupSwagger(app: INestApplication): void {
       tagsSorter: 'alpha',
       operationsSorter: 'alpha',
     },
-    customSiteTitle: 'Automobelite API Docs',
+    customSiteTitle: 'BTHG Rental Car API Docs',
   });
 }
