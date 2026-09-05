@@ -463,6 +463,12 @@ JWT_EXPIRES_IN="1h"
 JWT_REFRESH_EXPIRES_IN="7d"
 CORS_ORIGINS="http://localhost:3000"
 SWAGGER_ENABLED=true
+
+# Supabase Storage — used for car photos and profile avatars (StorageModule).
+# Find both under Project Settings > API in the Supabase dashboard. Uploads
+# are disabled (with a clear error) until both are set.
+SUPABASE_URL="https://PROJECT_REF.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="replace-with-the-service_role-key"
 ```
 
 ### Frontend (.env.local)

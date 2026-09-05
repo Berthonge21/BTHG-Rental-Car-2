@@ -16,10 +16,15 @@ export function useAdminDashboard() {
   });
 }
 
-export function useAdminRentals(query?: RentalQueryDto) {
+export function useAdminRentals(query?: RentalQueryDto, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: adminKeys.rentals(query),
     queryFn: () => api.admin.getRentals(query),
+    // /admin/rentals scopes by the caller's own agencyId — a superAdmin has
+    // none, which the backend treats as unscoped (see AUDIT.md §5/§6), so
+    // this must never fire for a superAdmin. Defaults to enabled so the
+    // three agency-admin-only call sites don't need to opt in explicitly.
+    enabled: options?.enabled ?? true,
   });
 }
 

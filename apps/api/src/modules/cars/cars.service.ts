@@ -2,7 +2,6 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCarDto, UpdateCarDto, CarQueryDto } from './dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
-import { rejectOnForeignKeyViolation } from '../../common/utils/prisma-errors';
 import { Prisma } from '@rentalcar/database';
 
 @Injectable()
@@ -26,6 +25,7 @@ export class CarsService {
     const skip = (page - 1) * limit;
 
     const where: Prisma.CarWhereInput = {
+      deletedAt: null,
       ...(agencyId && { agencyId }),
       ...(brand && { brand: { contains: brand, mode: 'insensitive' } }),
       ...(model && { model: { contains: model, mode: 'insensitive' } }),
@@ -34,7 +34,7 @@ export class CarsService {
       ...(fuel && { fuel: { contains: fuel, mode: 'insensitive' } }),
       ...(gearBox && { gearBox: { contains: gearBox, mode: 'insensitive' } }),
       ...(minYear && { year: { gte: minYear } }),
-      ...(clientFacing && { Agency: { status: 'activate' } }),
+      ...(clientFacing && { Agency: { status: 'activate', deletedAt: null } }),
     };
 
     const [cars, total] = await Promise.all([
@@ -62,8 +62,8 @@ export class CarsService {
   }
 
   async findOne(id: number, clientFacing = false) {
-    const car = await this.prisma.car.findUnique({
-      where: { id },
+    const car = await this.prisma.car.findFirst({
+      where: { id, deletedAt: null },
       include: {
         Agency: {
           select: {
@@ -72,6 +72,7 @@ export class CarsService {
             telephone: true,
             email: true,
             status: true,
+            deletedAt: true,
           },
         },
         parking: true,
@@ -82,7 +83,7 @@ export class CarsService {
       throw new NotFoundException(`Car with ID ${id} not found`);
     }
 
-    if (clientFacing && car.Agency.status === 'deactivate') {
+    if (clientFacing && (car.Agency.status === 'deactivate' || car.Agency.deletedAt)) {
       throw new NotFoundException(`Car with ID ${id} not found`);
     }
 
@@ -135,10 +136,22 @@ export class CarsService {
       throw new ForbiddenException('You can only delete cars from your own agency');
     }
 
-    return rejectOnForeignKeyViolation(
-      () => this.prisma.car.delete({ where: { id } }),
-      'Cannot delete a car with existing rental history',
-    );
+    const activeRental = await this.prisma.rental.findFirst({
+      where: { carId: id, status: { in: ['reserved', 'ongoing'] } },
+    });
+
+    if (activeRental) {
+      throw new ForbiddenException('Cannot delete a car with an active or reserved rental');
+    }
+
+    // Soft delete: Rental→Car is onDelete: Restrict specifically so a car
+    // with rental history can never be hard-deleted (see AUDIT.md §9) —
+    // "removing" a car now always means hiding it, never destroying the
+    // row, so that history stays intact and the removal is reversible.
+    return this.prisma.car.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 
   async checkAvailability(id: number, startDate: string, endDate: string) {

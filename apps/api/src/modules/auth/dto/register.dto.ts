@@ -78,5 +78,8 @@ export class RegisterDto {
   })
   @IsOptional()
   @IsString()
+  // A Supabase Storage URL, not an embedded base64 payload — see
+  // apps/web/src/lib/imageUtils.ts / StorageModule.
+  @MaxLength(500)
   image?: string;
 }

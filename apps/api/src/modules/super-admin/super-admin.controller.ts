@@ -29,7 +29,7 @@ import { RentalQueryDto, RentalResponseDto } from '../rentals/dto';
 import { AgencyResponseDto } from '../agencies/dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../../common/decorators';
+import { Roles, CurrentUser } from '../../common/decorators';
 
 @ApiTags('super-admin')
 @Controller('super-admin')
@@ -146,8 +146,9 @@ export class SuperAdminController {
   async updateAdminStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateAdminStatusDto,
+    @CurrentUser() actor: { id: number; email: string },
   ) {
-    return this.superAdminService.updateAdminStatus(id, dto);
+    return this.superAdminService.updateAdminStatus(id, dto, actor);
   }
 
   @Post('users')
@@ -181,7 +182,8 @@ export class SuperAdminController {
   async assignAdminToAgency(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: AssignAgencyDto,
+    @CurrentUser() actor: { id: number; email: string },
   ) {
-    return this.superAdminService.assignAdminToAgency(id, dto);
+    return this.superAdminService.assignAdminToAgency(id, dto, actor);
   }
 }

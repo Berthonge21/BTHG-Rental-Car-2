@@ -1,0 +1,7 @@
+# Compiled output from running tsc/ts-node directly against prisma/*.ts
+# (e.g. an IDE compiling seed.ts on save) — the real build output lives in
+# dist/, which the root .gitignore already covers.
+prisma/*.js
+prisma/*.js.map
+prisma/*.d.ts
+prisma/*.d.ts.map

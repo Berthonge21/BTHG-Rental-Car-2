@@ -4,7 +4,6 @@ import {
   Post,
   Patch,
   Body,
-  UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -17,12 +16,14 @@ import {
 import { UsersService } from './users.service';
 import { UpdateProfileDto, UserProfileResponseDto } from './dto';
 import { MessageResponseDto } from '../auth/dto/auth-response.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators';
 
+// No @UseGuards(JwtAuthGuard) here — JwtAuthGuard is already applied
+// globally via APP_GUARD (app.module.ts); every route in this controller
+// is protected by default, and would need @Public() to opt out, not a
+// guard decorator to opt in.
 @ApiTags('users')
 @Controller('users')
-@UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}

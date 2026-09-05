@@ -103,8 +103,13 @@ export class AdminController {
   async updateRentalStatus(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateRentalStatusDto,
-    @CurrentUser() user: { agencyId?: number; role: string },
+    @CurrentUser() user: { id: number; email: string; agencyId?: number; role: string },
   ) {
-    return this.adminService.updateRentalStatus(id, dto.status, requireTenantScope(user)!);
+    return this.adminService.updateRentalStatus(
+      id,
+      dto.status,
+      { id: user.id, email: user.email },
+      requireTenantScope(user)!,
+    );
   }
 }

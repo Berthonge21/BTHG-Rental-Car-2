@@ -125,10 +125,10 @@ Create a new car rental reservation.
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Not your rental' })
   async update(
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: { id: number },
+    @CurrentUser() user: { id: number; email: string },
     @Body() dto: UpdateRentalDto,
   ) {
-    return this.rentalsService.update(id, user.id, dto);
+    return this.rentalsService.update(id, user.id, dto, user.email);
   }
 
   @Delete(':id')
@@ -150,8 +150,8 @@ Cancel a rental reservation.
   @ApiResponse({ status: HttpStatus.FORBIDDEN, description: 'Not your rental' })
   async cancel(
     @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() user: { id: number },
+    @CurrentUser() user: { id: number; email: string },
   ) {
-    return this.rentalsService.cancel(id, user.id);
+    return this.rentalsService.cancel(id, user.id, user.email);
   }
 }

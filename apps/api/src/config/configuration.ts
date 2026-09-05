@@ -15,6 +15,10 @@ export interface AppConfig {
   swagger: {
     enabled: boolean;
   };
+  supabase: {
+    url: string;
+    serviceRoleKey: string;
+  };
 }
 
 const KNOWN_DEFAULT_SECRETS = new Set(['default-secret-change-me', 'default-secret']);
@@ -47,5 +51,9 @@ export default (): AppConfig => ({
   },
   swagger: {
     enabled: process.env.SWAGGER_ENABLED !== 'false',
+  },
+  supabase: {
+    url: process.env.SUPABASE_URL || '',
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
   },
 });

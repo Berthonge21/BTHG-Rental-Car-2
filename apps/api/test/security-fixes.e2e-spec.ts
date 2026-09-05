@@ -3,7 +3,10 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import * as bcrypt from 'bcrypt';
 import { PrismaClient } from '@rentalcar/database';
+import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 import { AppModule } from '../src/app.module';
+import { RentalLifecycleService } from '../src/modules/rentals/rental-lifecycle.service';
 
 /**
  * Regression suite for the P0/P1 fixes made in this pass of the platform
@@ -190,6 +193,13 @@ describe('Security fixes (e2e)', () => {
   });
 
   afterAll(async () => {
+    // AuditLog.actorEmail is deliberately not a foreign key (entries must
+    // survive actor deletion), so it needs its own explicit cleanup here.
+    await prisma.auditLog.deleteMany({
+      where: {
+        OR: [{ actorEmail: { contains: '@secfix-test.local' } }, { actorEmail: clientEmail }],
+      },
+    });
     await prisma.rental.deleteMany({ where: { client: { email: clientEmail } } });
     await prisma.client.deleteMany({ where: { email: clientEmail } });
     await prisma.car.deleteMany({ where: { registration: { startsWith: 'SECFIX-' } } });
@@ -463,6 +473,284 @@ describe('Security fixes (e2e)', () => {
         .set('Authorization', `Bearer ${clientToken}`)
         .send({ status: 'cancelled' });
       expect(res.status).toBe(200);
+    });
+  });
+
+  describe('Rental lifecycle — auto-completing past-due rentals', () => {
+    it('moves an ongoing rental past its endDate to completed', async () => {
+      const past = new Date();
+      past.setDate(past.getDate() - 10);
+      const pastEnd = new Date();
+      pastEnd.setDate(pastEnd.getDate() - 1);
+
+      const client = await prisma.client.findUniqueOrThrow({ where: { email: clientEmail } });
+      const rental = await prisma.rental.create({
+        data: {
+          clientId: client.id,
+          carId: carA.id,
+          startDate: past,
+          endDate: pastEnd,
+          startTime: past,
+          endTime: pastEnd,
+          total: carA.price,
+          status: 'ongoing',
+        },
+      });
+
+      const lifecycle = app.get(RentalLifecycleService);
+      await lifecycle.completePastDueRentals();
+
+      const updated = await prisma.rental.findUnique({ where: { id: rental.id } });
+      expect(updated?.status).toBe('completed');
+    });
+
+    it('does not touch an ongoing rental that has not ended yet', async () => {
+      const start = new Date();
+      start.setDate(start.getDate() - 1);
+      const futureEnd = new Date();
+      futureEnd.setDate(futureEnd.getDate() + 5);
+
+      const client = await prisma.client.findUniqueOrThrow({ where: { email: clientEmail } });
+      const rental = await prisma.rental.create({
+        data: {
+          clientId: client.id,
+          carId: carA.id,
+          startDate: start,
+          endDate: futureEnd,
+          startTime: start,
+          endTime: futureEnd,
+          total: carA.price,
+          status: 'ongoing',
+        },
+      });
+
+      const lifecycle = app.get(RentalLifecycleService);
+      await lifecycle.completePastDueRentals();
+
+      const unchanged = await prisma.rental.findUnique({ where: { id: rental.id } });
+      expect(unchanged?.status).toBe('ongoing');
+
+      await prisma.rental.delete({ where: { id: rental.id } });
+    });
+  });
+
+  describe('Audit log — privileged actions are attributed to an actor', () => {
+    const futureDate = (daysFromNow: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + daysFromNow);
+      return d.toISOString().slice(0, 10);
+    };
+
+    it('records who cancelled a rental', async () => {
+      const start = futureDate(300);
+      const end = futureDate(303);
+      const created = await request(app.getHttpServer())
+        .post('/rentals')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send({
+          carId: carA.id,
+          startDate: start,
+          endDate: end,
+          startTime: `${start}T10:00:00Z`,
+          endTime: `${end}T10:00:00Z`,
+        });
+      expect(created.status).toBe(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/rentals/${created.body.id}`)
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send({ status: 'cancelled' });
+      expect(res.status).toBe(200);
+
+      const entry = await prisma.auditLog.findFirst({
+        where: { action: 'rental.cancelled', targetType: 'Rental', targetId: created.body.id },
+      });
+      expect(entry).not.toBeNull();
+      expect(entry?.actorEmail).toBe(clientEmail);
+    });
+
+    it("records who changed an agency's status", async () => {
+      const res = await request(app.getHttpServer())
+        .put(`/agencies/${agencyA.id}`)
+        .set('Authorization', `Bearer ${tokenSuper}`)
+        .send({ status: 'deactivate' });
+      expect(res.status).toBe(200);
+
+      const entry = await prisma.auditLog.findFirst({
+        where: { action: 'agency.status_changed', targetType: 'Agency', targetId: agencyA.id },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(entry).not.toBeNull();
+      expect(entry?.actorEmail).toBe(superAdmin.email);
+      expect((entry?.metadata as Record<string, unknown> | null)?.newStatus).toBe('deactivate');
+
+      // restore for any later tests / re-runs
+      await request(app.getHttpServer())
+        .put(`/agencies/${agencyA.id}`)
+        .set('Authorization', `Bearer ${tokenSuper}`)
+        .send({ status: 'activate' });
+    });
+  });
+
+  describe('Soft delete — Car and Agency', () => {
+    it('deleting a car hides it from listings but keeps the row', async () => {
+      const created = await prisma.car.create({
+        data: {
+          agencyId: agencyA.id,
+          brand: 'SoftDelete',
+          model: 'TestCar',
+          year: 2023,
+          mileage: 1000,
+          price: 40,
+          registration: 'SECFIX-SOFTDEL',
+          fuel: 'Gasoline',
+          door: 4,
+          gearBox: 'Automatic',
+        },
+      });
+
+      const del = await request(app.getHttpServer())
+        .delete(`/cars/${created.id}`)
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(del.status).toBe(200);
+
+      // Row still exists, just marked deleted.
+      const raw = await prisma.car.findUnique({ where: { id: created.id } });
+      expect(raw).not.toBeNull();
+      expect(raw?.deletedAt).not.toBeNull();
+
+      // But it's gone from every read path.
+      const getOne = await request(app.getHttpServer()).get(`/cars/${created.id}`);
+      expect(getOne.status).toBe(404);
+
+      const list = await request(app.getHttpServer()).get(`/cars?agencyId=${agencyA.id}`);
+      expect(list.body.data.some((c: { id: number }) => c.id === created.id)).toBe(false);
+    });
+
+    it('deleting an agency hides it from listings, deactivates it, but keeps the row', async () => {
+      const respHash = await bcrypt.hash(PASSWORD, 12);
+      const respUser = await prisma.agencyUser.create({
+        data: {
+          name: 'SoftDel',
+          firstname: 'Resp',
+          email: 'softdel-resp@secfix-test.local',
+          password: respHash,
+          role: 'admin',
+        },
+      });
+      const agency = await prisma.agency.create({
+        data: {
+          name: 'SecFix Test SoftDelete Agency',
+          address: '1 Test St',
+          email: 'softdel-agency@secfix-test.local',
+          telephone: '0000000099',
+          responsibleId: respUser.id,
+          status: 'activate',
+        },
+      });
+
+      const del = await request(app.getHttpServer())
+        .delete(`/agencies/${agency.id}`)
+        .set('Authorization', `Bearer ${tokenSuper}`);
+      expect(del.status).toBe(200);
+
+      const raw = await prisma.agency.findUnique({ where: { id: agency.id } });
+      expect(raw).not.toBeNull();
+      expect(raw?.deletedAt).not.toBeNull();
+      expect(raw?.status).toBe('deactivate');
+
+      const getOne = await request(app.getHttpServer()).get(`/agencies/${agency.id}`);
+      expect(getOne.status).toBe(404);
+
+      const list = await request(app.getHttpServer()).get('/agencies?limit=100');
+      expect(list.body.data.some((a: { id: number }) => a.id === agency.id)).toBe(false);
+
+      await prisma.agency.delete({ where: { id: agency.id } });
+      await prisma.agencyUser.delete({ where: { id: respUser.id } });
+    });
+
+    it('cannot delete a car with an active or reserved rental', async () => {
+      const del = await request(app.getHttpServer())
+        .delete(`/cars/${carA.id}`)
+        .set('Authorization', `Bearer ${tokenA}`);
+      // carA has active/reserved rentals from earlier tests in this suite.
+      expect(del.status).toBe(403);
+
+      const raw = await prisma.car.findUnique({ where: { id: carA.id } });
+      expect(raw?.deletedAt).toBeNull();
+    });
+  });
+
+  // Only runs where Supabase Storage is actually configured (real CI, or a
+  // dev machine with SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY set) — the rest
+  // of this suite only ever needed DATABASE_URL, and a contributor running
+  // e2e tests locally without Storage creds shouldn't hit an unrelated
+  // failure here.
+  const storageConfigured = !!process.env.SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const uploadedStoragePaths: string[] = [];
+
+  (storageConfigured ? describe : describe.skip)('POST /storage/upload/:folder', () => {
+    afterAll(async () => {
+      if (uploadedStoragePaths.length === 0) return;
+      const supabase = createClient(process.env.SUPABASE_URL as string, process.env.SUPABASE_SERVICE_ROLE_KEY as string, {
+        realtime: { transport: WebSocket as unknown as typeof globalThis.WebSocket },
+      });
+      await supabase.storage.from('images').remove(uploadedStoragePaths);
+    });
+
+    // A minimal valid 1x1 PNG.
+    const tinyPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    );
+
+    it('rejects an unauthenticated request', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/storage/upload/avatars')
+        .attach('file', tinyPng, { filename: 'test.png', contentType: 'image/png' });
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects an unknown folder', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/storage/upload/not-a-real-folder')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .attach('file', tinyPng, { filename: 'test.png', contentType: 'image/png' });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a non-image content type', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/storage/upload/avatars')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .attach('file', Buffer.from('not an image'), { filename: 'test.txt', contentType: 'text/plain' });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a request with no file', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/storage/upload/avatars')
+        .set('Authorization', `Bearer ${clientToken}`);
+      expect(res.status).toBe(400);
+    });
+
+    it('uploads a valid image and returns its public Storage URL', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/storage/upload/avatars')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .attach('file', tinyPng, { filename: 'test.png', contentType: 'image/png' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.url).toMatch(
+        /^https:\/\/.+\/storage\/v1\/object\/public\/images\/avatars\/[a-f0-9-]+\.png$/,
+      );
+
+      // e.g. ".../object/public/images/avatars/<uuid>.png" -> "avatars/<uuid>.png"
+      const path = res.body.url.split('/public/images/')[1];
+      uploadedStoragePaths.push(path);
+
+      const fetched = await fetch(res.body.url);
+      expect(fetched.status).toBe(200);
     });
   });
 });

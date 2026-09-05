@@ -55,19 +55,17 @@ const COMPRESS_MAX_DIMENSION = 1600; // px, long edge
 const COMPRESS_JPEG_QUALITY = 0.8;
 
 /**
- * Resize an image file to at most `maxDimension` on its long edge and
- * re-encode it as JPEG, returning a base64 data-URL — client-side, before
- * it's ever serialized into the multi-image field. A typical 2MB phone
- * photo becomes a few hundred KB; four of them stay well under the
- * server's body-size limit instead of pushing a ~10MB request. Runs
- * independent of (and stays useful regardless of) any future move to
- * real object storage on the backend.
+ * Resize an image file to at most `maxDimension` on its long edge,
+ * re-encode it as JPEG, and return the result as a `Blob` — ready to
+ * upload to Supabase Storage (see `StorageModule` in the SDK) rather than
+ * being embedded as base64. A typical 2MB phone photo becomes a few
+ * hundred KB, keeping uploads fast regardless of the storage backend.
  */
 export function compressImage(
   file: File,
   maxDimension = COMPRESS_MAX_DIMENSION,
   quality = COMPRESS_JPEG_QUALITY,
-): Promise<string> {
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
     const img = new Image();
@@ -95,7 +93,17 @@ export function compressImage(
         return;
       }
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', quality));
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error('Failed to encode compressed image'));
+            return;
+          }
+          resolve(blob);
+        },
+        'image/jpeg',
+        quality,
+      );
     };
 
     img.onerror = () => {

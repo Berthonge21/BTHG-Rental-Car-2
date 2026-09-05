@@ -39,6 +39,11 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      # Used by the /storage/upload e2e tests (StorageModule) — same real
+      # Supabase project as DATABASE_URL/DIRECT_URL above. Uploaded test
+      # objects are removed in the suite's own afterAll.
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       JWT_SECRET: ci-only-secret-not-for-any-real-environment
       JWT_EXPIRES_IN: 1h
       JWT_REFRESH_EXPIRES_IN: 7d

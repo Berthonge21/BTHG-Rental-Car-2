@@ -88,6 +88,12 @@ model Agency {
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   status        Status         @default(activate)
+  // Soft delete only — name/email stay globally unique even for a deleted
+  // row (no partial unique index), so a deleted agency's name/email can't
+  // be reused by a new one today. That's a deliberate scope limit: making
+  // reuse work needs a raw-SQL partial unique index that schema.prisma
+  // can't express and that could drift on a future `migrate dev`.
+  deletedAt     DateTime?      @map("deleted_at")
   AgencyUser    AgencyUser     @relation("AgencyResponsible", fields: [responsibleId], references: [id])
   Staff         AgencyUser[]   @relation("AgencyStaff")
   Cars          Car[]
@@ -127,6 +133,9 @@ model Car {
   image        String?
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
+  // Soft delete — see the same note on Agency.deletedAt re: registration
+  // uniqueness not being reclaimed from a deleted row.
+  deletedAt    DateTime?      @map("deleted_at")
   availability Availability[]
   Agency       Agency         @relation(fields: [agencyId], references: [id])
   parking      Parking?       @relation(fields: [parkingId], references: [id])
@@ -192,6 +201,25 @@ model Availability {
   car       Car      @relation(fields: [carId], references: [id], onDelete: Cascade)
 
   @@unique([carId, date], name: "carId_date")
+}
+
+// Answers "who did this" for privileged writes (status changes, agency
+// assignment, cancellations) that previously had no trail at all. actorEmail
+// is denormalized deliberately: it must stay readable even if the actor
+// account is later deleted, so this can't be a foreign key to AgencyUser.
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  actorId    Int
+  actorEmail String   @db.VarChar(100)
+  action     String   @db.VarChar(100)
+  targetType String   @db.VarChar(50)
+  targetId   Int
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([targetType, targetId])
+  @@index([actorId])
+  @@index([createdAt])
 }
 
 enum UserRole {

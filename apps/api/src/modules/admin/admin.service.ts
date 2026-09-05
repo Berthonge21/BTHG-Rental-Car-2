@@ -21,7 +21,7 @@ export class AdminService {
       totalRevenue,
       monthlyRevenue,
     ] = await Promise.all([
-      this.prisma.car.count({ where: { agencyId } }),
+      this.prisma.car.count({ where: { agencyId, deletedAt: null } }),
       this.prisma.rental.groupBy({
         by: ['status'],
         where: { car: { agencyId } },
@@ -68,9 +68,10 @@ export class AdminService {
   async updateRentalStatus(
     rentalId: number,
     status: RentalStatus,
+    actor: { id: number; email: string },
     agencyId: number,
   ) {
-    return this.rentalsService.updateStatus(rentalId, status, agencyId);
+    return this.rentalsService.updateStatus(rentalId, status, actor, agencyId);
   }
 
   async getRental(rentalId: number, agencyId?: number) {

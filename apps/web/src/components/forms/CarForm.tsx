@@ -28,6 +28,7 @@ import { useCallback, useRef, useState, useEffect } from 'react';
 import { FiUploadCloud, FiX, FiPlus } from 'react-icons/fi';
 import type { Car, Agency } from '@bthgrentalcar/sdk';
 import { ProgressButton } from '@/components/ui/ProgressButton';
+import { api } from '@/lib/api';
 import {
   parseCarImages,
   serializeCarImages,
@@ -184,12 +185,13 @@ export function CarForm({
         }
 
         try {
-          const dataURL = await compressImage(file);
-          results.push(dataURL);
+          const blob = await compressImage(file);
+          const { url } = await api.storage.upload('cars', blob);
+          results.push(url);
         } catch {
           toast({
             title: 'Upload error',
-            description: `Failed to read "${file.name}".`,
+            description: `Failed to upload "${file.name}".`,
             status: 'error',
             duration: 4000,
             isClosable: true,

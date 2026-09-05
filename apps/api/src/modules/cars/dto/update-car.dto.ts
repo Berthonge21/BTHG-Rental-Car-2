@@ -112,5 +112,8 @@ export class UpdateCarDto {
   })
   @IsOptional()
   @IsString()
+  // See create-car.dto.ts — holds a JSON-serialized array of up to 4
+  // Supabase Storage URLs, never an embedded base64 payload.
+  @MaxLength(2000)
   image?: string;
 }

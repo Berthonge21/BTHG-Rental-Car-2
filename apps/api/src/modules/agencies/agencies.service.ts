@@ -2,18 +2,22 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAgencyDto, UpdateAgencyDto } from './dto';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
-import { rejectOnForeignKeyViolation } from '../../common/utils/prisma-errors';
 import { RentalStatus } from '@rentalcar/database';
+import { AuditLogService } from '../../common/audit-log/audit-log.service';
 
 @Injectable()
 export class AgenciesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private auditLog: AuditLogService,
+  ) {}
 
   async findAll(page = 1, limit = 10) {
     const skip = (page - 1) * limit;
 
     const [agencies, total] = await Promise.all([
       this.prisma.agency.findMany({
+        where: { deletedAt: null },
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
@@ -32,7 +36,7 @@ export class AgenciesService {
           },
         },
       }),
-      this.prisma.agency.count(),
+      this.prisma.agency.count({ where: { deletedAt: null } }),
     ]);
 
     return {
@@ -42,8 +46,8 @@ export class AgenciesService {
   }
 
   async findOne(id: number) {
-    const agency = await this.prisma.agency.findUnique({
-      where: { id },
+    const agency = await this.prisma.agency.findFirst({
+      where: { id, deletedAt: null },
       include: {
         // Public endpoint — deliberately excludes AgencyUser.email. That
         // is the admin's login credential, not agency contact info
@@ -109,8 +113,8 @@ export class AgenciesService {
     });
   }
 
-  async update(id: number, dto: UpdateAgencyDto) {
-    await this.findOne(id);
+  async update(id: number, dto: UpdateAgencyDto, actor: { id: number; email: string }) {
+    const existing = await this.findOne(id);
 
     if (dto.name) {
       const existingByName = await this.prisma.agency.findFirst({
@@ -132,19 +136,41 @@ export class AgenciesService {
       }
     }
 
-    return this.prisma.agency.update({
+    const updated = await this.prisma.agency.update({
       where: { id },
       data: dto,
     });
+
+    if (dto.status && dto.status !== existing.status) {
+      await this.auditLog.record({
+        actorId: actor.id,
+        actorEmail: actor.email,
+        action: 'agency.status_changed',
+        targetType: 'Agency',
+        targetId: id,
+        metadata: { previousStatus: existing.status, newStatus: dto.status },
+      });
+    }
+
+    return updated;
   }
 
   async remove(id: number) {
     await this.findOne(id);
 
-    return rejectOnForeignKeyViolation(
-      () => this.prisma.agency.delete({ where: { id } }),
-      'Cannot delete an agency with existing cars, staff, or parkings',
-    );
+    // Soft delete: Car→Agency stays Restrict at the DB level, so an
+    // agency with any (non-deleted) cars still can't be hard-deleted —
+    // but staff (AgencyUser→Agency) is ON DELETE SET NULL, so a hard
+    // delete would silently orphan every admin at that agency instead of
+    // being blocked. Soft delete sidesteps that entirely: the agency
+    // record — and its staff's agencyId — stay intact and reversible.
+    return this.prisma.agency.update({
+      where: { id },
+      // Also deactivate: a deleted agency must never still read as
+      // 'activate' to the parts of the app (the public car catalogue,
+      // notably) that only check status and don't know about deletedAt.
+      data: { deletedAt: new Date(), status: 'deactivate' },
+    });
   }
 
   async getCars(id: number, page = 1, limit = 10) {
@@ -154,12 +180,12 @@ export class AgenciesService {
 
     const [cars, total] = await Promise.all([
       this.prisma.car.findMany({
-        where: { agencyId: id },
+        where: { agencyId: id, deletedAt: null },
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.car.count({ where: { agencyId: id } }),
+      this.prisma.car.count({ where: { agencyId: id, deletedAt: null } }),
     ]);
 
     return {
@@ -172,7 +198,7 @@ export class AgenciesService {
     await this.findOne(id);
 
     const [totalCars, rentalCounts, revenue] = await Promise.all([
-      this.prisma.car.count({ where: { agencyId: id } }),
+      this.prisma.car.count({ where: { agencyId: id, deletedAt: null } }),
       this.prisma.rental.groupBy({
         by: ['status'],
         where: { car: { agencyId: id } },

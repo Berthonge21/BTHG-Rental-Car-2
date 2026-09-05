@@ -110,8 +110,9 @@ export class AgenciesController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateAgencyDto,
+    @CurrentUser() actor: { id: number; email: string },
   ) {
-    return this.agenciesService.update(id, dto);
+    return this.agenciesService.update(id, dto, actor);
   }
 
   @Delete(':id')

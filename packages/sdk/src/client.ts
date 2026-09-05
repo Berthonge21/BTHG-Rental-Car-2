@@ -12,6 +12,7 @@ import { AgenciesModule } from './modules/agencies';
 import { UsersModule } from './modules/users';
 import { AdminModule } from './modules/admin';
 import { SuperAdminModule } from './modules/super-admin';
+import { StorageModule } from './modules/storage';
 import type { AuthResponse, RefreshTokenDto } from './types';
 
 export interface TokenStorage {
@@ -96,6 +97,7 @@ export class BthgClient {
   public readonly users: UsersModule;
   public readonly admin: AdminModule;
   public readonly superAdmin: SuperAdminModule;
+  public readonly storage: StorageModule;
 
   constructor(config: BthgClientConfig) {
     this.config = config;
@@ -119,6 +121,7 @@ export class BthgClient {
     this.users = new UsersModule(this.http);
     this.admin = new AdminModule(this.http);
     this.superAdmin = new SuperAdminModule(this.http);
+    this.storage = new StorageModule(this.http);
   }
 
   private setupInterceptors(): void {

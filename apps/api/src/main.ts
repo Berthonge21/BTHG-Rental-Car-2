@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger as PinoLogger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
@@ -26,9 +27,12 @@ async function bootstrap(): Promise<void> {
   // Display banner
   console.log('\x1b[36m%s\x1b[0m', banner);
 
+  // bufferLogs holds onto any log calls made before useLogger() runs below,
+  // instead of dropping them or falling back to the default console logger.
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'log'],
+    bufferLogs: true,
   });
+  app.useLogger(app.get(PinoLogger));
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('port') || 4000;
@@ -36,9 +40,12 @@ async function bootstrap(): Promise<void> {
   const corsConfig = configService.get<{ origins: string[] }>('cors') || { origins: ['http://localhost:3000'] };
   const swaggerConfig = configService.get<{ enabled: boolean }>('swagger') || { enabled: true };
 
-  // Increase body parser limit for base64 image uploads
-  app.use(json({ limit: '15mb' }));
-  app.use(urlencoded({ extended: true, limit: '15mb' }));
+  // Images now go through /storage/upload as multipart (see StorageModule),
+  // not embedded as base64 in JSON bodies (AUDIT.md §6.2/§10.3), so the
+  // JSON/urlencoded body limit no longer needs to be sized for a car's
+  // worth of photos — 2mb is plenty for any ordinary payload plus headroom.
+  app.use(json({ limit: '2mb' }));
+  app.use(urlencoded({ extended: true, limit: '2mb' }));
 
   // Set global prefix
   app.setGlobalPrefix(apiPrefix);
