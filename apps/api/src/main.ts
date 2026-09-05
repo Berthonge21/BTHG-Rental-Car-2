@@ -40,9 +40,12 @@ async function bootstrap(): Promise<void> {
   const corsConfig = configService.get<{ origins: string[] }>('cors') || { origins: ['http://localhost:3000'] };
   const swaggerConfig = configService.get<{ enabled: boolean }>('swagger') || { enabled: true };
 
-  // Increase body parser limit for base64 image uploads
-  app.use(json({ limit: '15mb' }));
-  app.use(urlencoded({ extended: true, limit: '15mb' }));
+  // Images now go through /storage/upload as multipart (see StorageModule),
+  // not embedded as base64 in JSON bodies (AUDIT.md §6.2/§10.3), so the
+  // JSON/urlencoded body limit no longer needs to be sized for a car's
+  // worth of photos — 2mb is plenty for any ordinary payload plus headroom.
+  app.use(json({ limit: '2mb' }));
+  app.use(urlencoded({ extended: true, limit: '2mb' }));
 
   // Set global prefix
   app.setGlobalPrefix(apiPrefix);

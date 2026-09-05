@@ -110,5 +110,9 @@ export class CreateCarDto {
   })
   @IsOptional()
   @IsString()
+  // Holds a JSON-serialized array of up to 4 Supabase Storage URLs
+  // (see apps/web/src/lib/imageUtils.ts) — 2000 chars comfortably covers
+  // that, with no room left for an embedded base64 payload.
+  @MaxLength(2000)
   image?: string;
 }

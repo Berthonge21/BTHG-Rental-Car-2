@@ -111,11 +111,12 @@ export function AgencyStaffProfile() {
     }
 
     try {
-      const dataUrl = await compressImage(file);
-      setValue('image', dataUrl, { shouldDirty: true });
-      setImagePreview(dataUrl);
+      const blob = await compressImage(file);
+      const { url } = await api.storage.upload('avatars', blob);
+      setValue('image', url, { shouldDirty: true });
+      setImagePreview(url);
     } catch {
-      toast({ title: 'Failed to read file', status: 'error', duration: 3000 });
+      toast({ title: 'Failed to upload image', status: 'error', duration: 3000 });
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };

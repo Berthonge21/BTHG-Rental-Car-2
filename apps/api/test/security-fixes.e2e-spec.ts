@@ -3,6 +3,8 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import * as bcrypt from 'bcrypt';
 import { PrismaClient } from '@rentalcar/database';
+import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 import { AppModule } from '../src/app.module';
 import { RentalLifecycleService } from '../src/modules/rentals/rental-lifecycle.service';
 
@@ -676,6 +678,79 @@ describe('Security fixes (e2e)', () => {
 
       const raw = await prisma.car.findUnique({ where: { id: carA.id } });
       expect(raw?.deletedAt).toBeNull();
+    });
+  });
+
+  // Only runs where Supabase Storage is actually configured (real CI, or a
+  // dev machine with SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY set) — the rest
+  // of this suite only ever needed DATABASE_URL, and a contributor running
+  // e2e tests locally without Storage creds shouldn't hit an unrelated
+  // failure here.
+  const storageConfigured = !!process.env.SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const uploadedStoragePaths: string[] = [];
+
+  (storageConfigured ? describe : describe.skip)('POST /storage/upload/:folder', () => {
+    afterAll(async () => {
+      if (uploadedStoragePaths.length === 0) return;
+      const supabase = createClient(process.env.SUPABASE_URL as string, process.env.SUPABASE_SERVICE_ROLE_KEY as string, {
+        realtime: { transport: WebSocket as unknown as typeof globalThis.WebSocket },
+      });
+      await supabase.storage.from('images').remove(uploadedStoragePaths);
+    });
+
+    // A minimal valid 1x1 PNG.
+    const tinyPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64',
+    );
+
+    it('rejects an unauthenticated request', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/storage/upload/avatars')
+        .attach('file', tinyPng, { filename: 'test.png', contentType: 'image/png' });
+      expect(res.status).toBe(401);
+    });
+
+    it('rejects an unknown folder', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/storage/upload/not-a-real-folder')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .attach('file', tinyPng, { filename: 'test.png', contentType: 'image/png' });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a non-image content type', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/storage/upload/avatars')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .attach('file', Buffer.from('not an image'), { filename: 'test.txt', contentType: 'text/plain' });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a request with no file', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/storage/upload/avatars')
+        .set('Authorization', `Bearer ${clientToken}`);
+      expect(res.status).toBe(400);
+    });
+
+    it('uploads a valid image and returns its public Storage URL', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/storage/upload/avatars')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .attach('file', tinyPng, { filename: 'test.png', contentType: 'image/png' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.url).toMatch(
+        /^https:\/\/.+\/storage\/v1\/object\/public\/images\/avatars\/[a-f0-9-]+\.png$/,
+      );
+
+      // e.g. ".../object/public/images/avatars/<uuid>.png" -> "avatars/<uuid>.png"
+      const path = res.body.url.split('/public/images/')[1];
+      uploadedStoragePaths.push(path);
+
+      const fetched = await fetch(res.body.url);
+      expect(fetched.status).toBe(200);
     });
   });
 });

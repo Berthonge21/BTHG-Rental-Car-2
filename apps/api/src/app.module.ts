@@ -13,6 +13,7 @@ import { RentalsModule } from './modules/rentals/rentals.module';
 import { UsersModule } from './modules/users/users.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { StorageModule } from './modules/storage/storage.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import configuration from './config/configuration';
 
@@ -75,6 +76,7 @@ import configuration from './config/configuration';
     UsersModule,
     AdminModule,
     SuperAdminModule,
+    StorageModule,
   ],
   controllers: [],
   providers: [
