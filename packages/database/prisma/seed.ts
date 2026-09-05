@@ -1,10 +1,117 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 
 const prisma = new PrismaClient();
 
+// next.config.js's images.remotePatterns only allows this app's own
+// Supabase Storage host (it used to be '**' — an open image proxy, closed
+// as part of the audit). That means these demo cars can no longer point
+// straight at images.unsplash.com like they used to: Next.js's <Image>
+// simply refuses to render an unlisted host. So this seed script re-hosts
+// each photo in Storage once (same bucket StorageModule uploads real
+// photos to) and stores the resulting public URL instead.
+const STORAGE_BUCKET = 'images';
+
+function getSupabaseClient(): SupabaseClient | null {
+  const url = process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceRoleKey) return null;
+
+  return createClient(url, serviceRoleKey, {
+    auth: { persistSession: false },
+    // See apps/api's StorageService for why this is needed on Node < 22.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    realtime: { transport: WebSocket as any },
+  });
+}
+
+async function ensureBucket(supabase: SupabaseClient): Promise<void> {
+  const { data: buckets, error } = await supabase.storage.listBuckets();
+  if (error) throw error;
+  if (buckets?.some((b) => b.name === STORAGE_BUCKET)) return;
+
+  const { error: createError } = await supabase.storage.createBucket(STORAGE_BUCKET, {
+    public: true,
+    fileSizeLimit: '5MB',
+  });
+  if (createError) throw createError;
+}
+
+/**
+ * Re-host a demo photo in Storage under `cars/<slug>.jpg` and return its
+ * public URL. Idempotent across repeated seed runs — if the object is
+ * already there from a previous run, it's reused instead of re-fetched
+ * from Unsplash. Returns `undefined` (leaving the car imageless) when
+ * Supabase isn't configured at all, so seeding a plain Postgres setup
+ * without Storage still works.
+ */
+async function seedCarImage(
+  supabase: SupabaseClient | null,
+  sourceUrl: string,
+  slug: string,
+): Promise<string | undefined> {
+  if (!supabase) return undefined;
+
+  const filename = `${slug}.jpg`;
+  const path = `cars/${filename}`;
+
+  const { data: existing } = await supabase.storage.from(STORAGE_BUCKET).list('cars', { search: filename });
+  if (!existing?.some((f) => f.name === filename)) {
+    const response = await fetch(sourceUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch seed image "${sourceUrl}": ${response.status} ${response.statusText}`);
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const { error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(path, buffer, { contentType: 'image/jpeg', upsert: true });
+    if (error) throw error;
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+  return publicUrl;
+}
+
 async function main() {
   console.log('Seeding database...');
+
+  const supabase = getSupabaseClient();
+  if (supabase) {
+    await ensureBucket(supabase);
+  } else {
+    console.warn(
+      'SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set — seeded cars will have no image ' +
+        '(see packages/database/.env.example).',
+    );
+  }
+
+  // Fetched once, up front, in parallel — each car below just references
+  // the matching entry by index.
+  const [
+    camryImage,
+    civicImage,
+    mustangImage,
+    malibuImage,
+    altimaImage,
+    sonataImage,
+    series5Image,
+    eClassImage,
+    a6Image,
+  ] = await Promise.all([
+    seedCarImage(supabase, 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=500', 'toyota-camry'),
+    seedCarImage(supabase, 'https://images.unsplash.com/photo-1606611013016-969c19ba27bb?w=500', 'honda-civic'),
+    seedCarImage(supabase, 'https://images.unsplash.com/photo-1547038577-da80abbc4f19?w=500', 'ford-mustang'),
+    seedCarImage(supabase, 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=500', 'chevrolet-malibu'),
+    seedCarImage(supabase, 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=500', 'nissan-altima'),
+    seedCarImage(supabase, 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=500', 'hyundai-sonata'),
+    seedCarImage(supabase, 'https://images.unsplash.com/photo-1555215695-3004980ad54e?w=500', 'bmw-5-series'),
+    seedCarImage(supabase, 'https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=500', 'mercedes-e-class'),
+    seedCarImage(supabase, 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=500', 'audi-a6'),
+  ]);
 
   // Hash password — cost 12, matching every other password hash in the app
   // (auth.service.ts, super-admin.service.ts).
@@ -71,8 +178,8 @@ async function main() {
   // Agency 1 - 6 Cars
   const cars1 = await Promise.all([
     prisma.car.upsert({
-      where: { id: 1 },
-      update: {},
+      where: { agencyId_registration: { agencyId: agency1.id, registration: 'ABC-1234' } },
+      update: { image: camryImage },
       create: {
         agencyId: agency1.id,
         brand: 'Toyota',
@@ -85,12 +192,12 @@ async function main() {
         door: 4,
         gearBox: 'Automatic',
         description: 'Comfortable sedan perfect for business trips',
-        image: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=500',
+        image: camryImage,
       },
     }),
     prisma.car.upsert({
-      where: { id: 2 },
-      update: {},
+      where: { agencyId_registration: { agencyId: agency1.id, registration: 'XYZ-5678' } },
+      update: { image: civicImage },
       create: {
         agencyId: agency1.id,
         brand: 'Honda',
@@ -103,12 +210,12 @@ async function main() {
         door: 4,
         gearBox: 'Automatic',
         description: 'Fuel-efficient hybrid for eco-conscious drivers',
-        image: 'https://images.unsplash.com/photo-1606611013016-969c19ba27bb?w=500',
+        image: civicImage,
       },
     }),
     prisma.car.upsert({
-      where: { id: 3 },
-      update: {},
+      where: { agencyId_registration: { agencyId: agency1.id, registration: 'MUS-0001' } },
+      update: { image: mustangImage },
       create: {
         agencyId: agency1.id,
         brand: 'Ford',
@@ -121,12 +228,12 @@ async function main() {
         door: 2,
         gearBox: 'Manual',
         description: 'Iconic American muscle car',
-        image: 'https://images.unsplash.com/photo-1584345604476-8ec5f82d718c?w=500',
+        image: mustangImage,
       },
     }),
     prisma.car.upsert({
-      where: { id: 4 },
-      update: {},
+      where: { agencyId_registration: { agencyId: agency1.id, registration: 'CHV-0002' } },
+      update: { image: malibuImage },
       create: {
         agencyId: agency1.id,
         brand: 'Chevrolet',
@@ -139,12 +246,12 @@ async function main() {
         door: 4,
         gearBox: 'Automatic',
         description: 'Reliable midsize sedan',
-        image: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=500',
+        image: malibuImage,
       },
     }),
     prisma.car.upsert({
-      where: { id: 5 },
-      update: {},
+      where: { agencyId_registration: { agencyId: agency1.id, registration: 'NIS-0003' } },
+      update: { image: altimaImage },
       create: {
         agencyId: agency1.id,
         brand: 'Nissan',
@@ -157,12 +264,12 @@ async function main() {
         door: 4,
         gearBox: 'Automatic',
         description: 'Comfortable and efficient',
-        image: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=500',
+        image: altimaImage,
       },
     }),
     prisma.car.upsert({
-      where: { id: 6 },
-      update: {},
+      where: { agencyId_registration: { agencyId: agency1.id, registration: 'HYN-0004' } },
+      update: { image: sonataImage },
       create: {
         agencyId: agency1.id,
         brand: 'Hyundai',
@@ -175,7 +282,7 @@ async function main() {
         door: 4,
         gearBox: 'Automatic',
         description: 'Modern hybrid technology',
-        image: 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?w=500',
+        image: sonataImage,
       },
     }),
   ]);
@@ -222,8 +329,8 @@ async function main() {
   // Agency 2 - 3 Cars
   const cars2 = await Promise.all([
     prisma.car.upsert({
-      where: { id: 7 },
-      update: {},
+      where: { agencyId_registration: { agencyId: agency2.id, registration: 'BMW-0001' } },
+      update: { image: series5Image },
       create: {
         agencyId: agency2.id,
         brand: 'BMW',
@@ -236,12 +343,12 @@ async function main() {
         door: 4,
         gearBox: 'Automatic',
         description: 'Luxury executive sedan with premium features',
-        image: 'https://images.unsplash.com/photo-1555215695-3004980ad54e?w=500',
+        image: series5Image,
       },
     }),
     prisma.car.upsert({
-      where: { id: 8 },
-      update: {},
+      where: { agencyId_registration: { agencyId: agency2.id, registration: 'MBZ-0002' } },
+      update: { image: eClassImage },
       create: {
         agencyId: agency2.id,
         brand: 'Mercedes-Benz',
@@ -254,12 +361,12 @@ async function main() {
         door: 4,
         gearBox: 'Automatic',
         description: 'Elegant and powerful German engineering',
-        image: 'https://images.unsplash.com/photo-1618843479313-40f8afb4b4d8?w=500',
+        image: eClassImage,
       },
     }),
     prisma.car.upsert({
-      where: { id: 9 },
-      update: {},
+      where: { agencyId_registration: { agencyId: agency2.id, registration: 'AUD-0003' } },
+      update: { image: a6Image },
       create: {
         agencyId: agency2.id,
         brand: 'Audi',
@@ -272,7 +379,7 @@ async function main() {
         door: 4,
         gearBox: 'Automatic',
         description: 'Sporty luxury with advanced technology',
-        image: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=500',
+        image: a6Image,
       },
     }),
   ]);
@@ -340,9 +447,22 @@ async function main() {
   console.log('Created Client 3:', client3.email);
 
   // ==========================================
-  // RENTALS FOR AGENCY 1
-  // 2 pending (reserved), 1 completed, 1 cancelled
+  // RENTALS FOR AGENCY 1 & 2
   // ==========================================
+  //
+  // These are dated relative to "now" (so the reserved ones are always
+  // upcoming, the completed/cancelled ones always in the past) rather than
+  // fixed calendar dates — which means re-running this script computes a
+  // near-identical, but not identical, date range each time. Rental has no
+  // natural unique business key to `upsert` on the way Car does
+  // (agencyId+registration) — its "identity" here is really "the demo
+  // reservation for this car in this scenario" — and the DB's own overlap
+  // exclusion constraint (Rental_no_overlapping_bookings) would reject a
+  // second `create` for the same car with an overlapping range. So instead
+  // of upserting, every demo rental for these specific 9 cars is cleared
+  // first and recreated fresh on each run.
+  const demoCarIds = [...cars1, ...cars2].map((c) => c.id);
+  await prisma.rental.deleteMany({ where: { carId: { in: demoCarIds } } });
 
   // Pending 1 - Toyota Camry
   const startDate1 = new Date();
@@ -350,10 +470,8 @@ async function main() {
   const endDate1 = new Date();
   endDate1.setDate(endDate1.getDate() + 4);
 
-  await prisma.rental.upsert({
-    where: { id: 1 },
-    update: {},
-    create: {
+  await prisma.rental.create({
+    data: {
       clientId: client1.id,
       carId: cars1[0].id, // Toyota Camry
       startDate: startDate1,
@@ -372,10 +490,8 @@ async function main() {
   const endDate2 = new Date();
   endDate2.setDate(endDate2.getDate() + 7);
 
-  await prisma.rental.upsert({
-    where: { id: 2 },
-    update: {},
-    create: {
+  await prisma.rental.create({
+    data: {
       clientId: client2.id,
       carId: cars1[2].id, // Ford Mustang
       startDate: startDate2,
@@ -394,10 +510,8 @@ async function main() {
   const endDate3 = new Date();
   endDate3.setDate(endDate3.getDate() - 7);
 
-  await prisma.rental.upsert({
-    where: { id: 3 },
-    update: {},
-    create: {
+  await prisma.rental.create({
+    data: {
       clientId: client3.id,
       carId: cars1[1].id, // Honda Civic
       startDate: startDate3,
@@ -416,10 +530,8 @@ async function main() {
   const endDate4 = new Date();
   endDate4.setDate(endDate4.getDate() - 2);
 
-  await prisma.rental.upsert({
-    where: { id: 4 },
-    update: {},
-    create: {
+  await prisma.rental.create({
+    data: {
       clientId: client1.id,
       carId: cars1[3].id, // Chevrolet Malibu
       startDate: startDate4,
@@ -442,10 +554,8 @@ async function main() {
   const endDate5 = new Date();
   endDate5.setDate(endDate5.getDate() + 5);
 
-  await prisma.rental.upsert({
-    where: { id: 5 },
-    update: {},
-    create: {
+  await prisma.rental.create({
+    data: {
       clientId: client2.id,
       carId: cars2[0].id, // BMW 5 Series
       startDate: startDate5,
