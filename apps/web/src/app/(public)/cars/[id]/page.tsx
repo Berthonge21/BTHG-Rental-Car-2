@@ -102,6 +102,20 @@ interface BookingData {
   notes: string;
 }
 
+/**
+ * The API's Rental.startTime/endTime are full DateTime columns, validated
+ * with @IsDateString() — a bare "HH:mm" from an <Input type="time"> (what
+ * this form collects) fails that validation outright ("must be a valid
+ * ISO 8601 date string"). Combine it with the matching date field into a
+ * real timestamp before sending.
+ */
+function combineDateAndTime(dateStr: string, timeStr: string): string {
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const date = parseISO(dateStr);
+  date.setHours(hours, minutes, 0, 0);
+  return date.toISOString();
+}
+
 function BookingWizard({ carId, pricePerDay, onSuccess }: { carId: number; pricePerDay: number; onSuccess: () => void }) {
   const toast = useToast();
   const { user } = useAuthStore();
@@ -142,8 +156,8 @@ function BookingWizard({ carId, pricePerDay, onSuccess }: { carId: number; price
         carId,
         startDate: form.startDate,
         endDate: form.endDate,
-        startTime: form.startTime,
-        endTime: form.endTime,
+        startTime: combineDateAndTime(form.startDate, form.startTime),
+        endTime: combineDateAndTime(form.endDate, form.endTime),
       });
       toast({ title: 'Booking confirmed!', description: 'Your reservation is now active.', status: 'success', duration: 4000 });
       onSuccess();
